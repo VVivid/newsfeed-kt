@@ -11,7 +11,7 @@ behavior without this conversation. Translation means improving the actual code
 for human readers, not translating languages or merely explaining it.
 
 Adapted from the VVivid workspace skill for this public, single-project Android
-repository, with settings for both Codex and Claude Code hosts.
+repository, running on Claude Code sub-agents.
 
 ## Coordination and boundaries
 
@@ -48,21 +48,21 @@ applicable instructions, current diff, and validation commands and results. Do
 not supply earlier approval verdicts or persuasive explanations as evidence of
 correctness.
 
-| Host | Builder | Translation | Review |
-| --- | --- | --- | --- |
-| Codex | `model="gpt-6.1-sol"`, `reasoning_effort="max"` | `model="gpt-6.1-sol"`, `reasoning_effort="xhigh"` | `model="gpt-6.1-sol"`, `reasoning_effort="max"` |
-| Claude Code | Agent tool, `subagent_type="general-purpose"`, `model="opus"`, `effort="max"` | `subagent_type="general-purpose"`, `model="opus"`, `effort="xhigh"` | `subagent_type="Plan"` (no edit tools), `model="opus"`, `effort="max"` |
+This workflow runs on Claude Code (owner decision, 2026-11-25). Launch every
+stage with the Agent tool and `model="opus"`:
 
-On Codex, use `fork_turns="none"` when supplying overrides and verify the
-effective model and effort from host launch or runtime metadata.
+| Stage | `subagent_type` | `effort` |
+| --- | --- | --- |
+| Builder | `general-purpose` | `max` |
+| Translation | `general-purpose` | `xhigh` |
+| Review | `Plan` (read-only: no edit tools) | `max` |
 
-On Claude Code, never use `subagent_type="fork"`, which inherits the
-coordinator's context. Record each stage's agent ID and the launch settings.
+Never use `subagent_type="fork"`, which inherits the coordinator's context. Record each stage's agent ID and the launch settings.
 Claude Code does not expose separate runtime proof of a sub-agent's model, so the
 recorded launch settings are the available evidence; state that limitation in the
 handoff instead of claiming runtime verification.
 
-On either host, if independent agents are unavailable or the required settings
+If independent agents are unavailable or the required settings
 cannot be applied, stop and leave the workflow incomplete. Never present a
 single-agent pass as independent review.
 
