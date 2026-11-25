@@ -46,14 +46,20 @@ Synchronize by fetching and merging `origin/main` into the task branch. Do not
 rebase, amend, reset or force-push published work.
 
 **Never push anything to any remote without the user's explicit permission for
-that push.** Permission must cover the remote and refs. Commit, PR creation,
-merge and release actions each require the corresponding user instruction.
-Deliver through a PR to `main`; the user controls merging. Never push directly to
-`main`.
+that push.** Permission must cover the remote and refs.
 
-The only exception was the initial bootstrap commit of the empty repository,
-pushed to `main` with the user's explicit permission before protection rules
-existed.
+The user chose direct delivery to `main` (2026-11-25). After a coding checkpoint
+passes final validation and Review returns `Approved`, or a documentation change
+passes its direct checks:
+
+1. Inspect the complete staged diff against the [public-repository rules](../AGENTS.md#public-repository-secrets-and-private-data-must).
+2. Commit on the task branch, fetch `origin/main`, and merge it into the task
+   branch if `main` moved (then re-run affected validation).
+3. Fast-forward local `main` to the task branch and push `main`. Never
+   force-push.
+
+Pushing task branches, tags or releases still needs explicit permission.
+Denied, failing or unreviewed work is never pushed.
 
 ## Local checkpoint records
 

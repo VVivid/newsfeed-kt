@@ -23,11 +23,15 @@ printed in CI logs is visible to everyone and stays in Git history.
   deletions through Git, the GitHub API, `gh` or any delegated agent. Plan
   approval, local commits, a successful review or a PR creation request do not
   imply push permission.
-- Never push directly to `main`, force-push, delete remote branches or tags, or
-  rewrite published history. Every change reaches `main` through a pull request.
-  The user controls merging.
-- Commit, PR creation, merge, release and tag actions each need the corresponding
-  user instruction.
+- **Standing permission (granted by the user on 2026-11-25):** push directly to
+  `origin/main` only for work that finished its required workflow: a coding
+  checkpoint after final validation and a Review verdict of `Approved`, or a
+  documentation/instruction change after its direct checks. This permission
+  covers committing that work too. It does not cover other branches, tags,
+  releases or anything unreviewed; those still need explicit permission.
+- Never force-push, delete remote branches or tags, or rewrite published history.
+  Update `main` only by fast-forward from the reviewed local result.
+- Tags and releases each need the corresponding user instruction.
 - Never change repository settings, rulesets, branch protection, Actions
   permissions, secrets, deploy keys, webhooks, collaborators or visibility
   without an explicit request for that specific change.

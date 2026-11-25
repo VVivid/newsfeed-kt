@@ -35,3 +35,7 @@ instructions will be added with the Gradle project.
 This is a public repository. Never commit credentials, signing keys, real server
 addresses or personal data. See [SECURITY.md](SECURITY.md) for reporting
 vulnerabilities.
+
+## License
+
+[MIT](LICENSE)
