@@ -1,6 +1,7 @@
 package dev.vvivid.newsfeed.ui.theme
 
 import android.os.Build
+import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -14,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
  * fallback-cover palette.
  *
  * @param dynamicColor use the wallpaper-based Material You colors instead of the newsprint
- *   schemes. Only honored on Android 12 (API 31) and newer.
+ *   schemes. Only honored where [isDynamicColorAvailable].
  */
 @Composable
 fun NewsfeedTheme(
@@ -24,7 +25,7 @@ fun NewsfeedTheme(
 ) {
     val colorScheme =
         when {
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            dynamicColor && isDynamicColorAvailable -> {
                 val context = LocalContext.current
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             }
@@ -47,3 +48,8 @@ fun NewsfeedTheme(
         )
     }
 }
+
+/** Material You wallpaper colors exist on Android 12 (API 31) and newer. */
+@get:ChecksSdkIntAtLeast(api = Build.VERSION_CODES.S)
+val isDynamicColorAvailable: Boolean
+    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S

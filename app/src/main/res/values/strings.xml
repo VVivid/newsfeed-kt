@@ -2,8 +2,9 @@
 <resources>
     <string name="app_name">Newsfeed</string>
 
+    <!-- Settings cannot be reached before sign-in exists, so the intro does not point there yet. -->
     <string name="onboarding_title">Connect to your Newsfeed</string>
-    <string name="onboarding_intro">Enter the address of your AgentNewsfeed server. You can change it later in Settings.</string>
+    <string name="onboarding_intro">Enter the address of your AgentNewsfeed server.</string>
     <string name="onboarding_address_label">Server address</string>
     <string name="onboarding_address_prefix" translatable="false">https://</string>
     <string name="onboarding_address_placeholder" translatable="false">news.example.com</string>
@@ -19,4 +20,75 @@
     <string name="server_address_error_host">That does not look like a server address.</string>
     <string name="server_address_error_ipv6">IPv6 addresses are not supported yet. Use the server\'s host name.</string>
     <string name="server_address_error_port">Use a port number from 1 to 65535.</string>
+
+    <string name="action_retry">Retry</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_unarchive">Unarchive</string>
+    <string name="action_move_to_trash">Move to Trash</string>
+    <string name="action_restore">Restore</string>
+    <string name="action_share">Share</string>
+    <string name="action_open_original">Open original</string>
+    <string name="back_to_news">Back to News</string>
+
+    <string name="message_archived">Article archived</string>
+    <string name="message_unarchived">Article moved to Active</string>
+    <string name="message_moved_to_trash">Article moved to Trash</string>
+    <string name="message_restored_to_active">Article restored to Active</string>
+    <string name="message_restored_to_archive">Article restored to Archive</string>
+    <string name="message_archive_failed">Couldn\'t archive the article. Try again.</string>
+    <string name="message_unarchive_failed">Couldn\'t move the article to Active. Try again.</string>
+    <string name="message_move_to_trash_failed">Couldn\'t move the article to Trash. Try again.</string>
+    <string name="message_restore_failed">Couldn\'t restore the article. Try again.</string>
+    <string name="message_undo_archive_failed">Couldn\'t undo. The article is still in Archive.</string>
+    <string name="message_undo_move_to_trash_failed">Couldn\'t undo. The article is still in Trash.</string>
+
+    <string name="news_open_settings">Settings and account</string>
+    <string name="shelf_active">Active</string>
+    <string name="shelf_archive">Archive</string>
+    <string name="shelf_trash">Trash</string>
+    <string name="news_section_latest">Latest</string>
+    <string name="news_section_earlier">Earlier</string>
+    <string name="news_section_archived">Archived</string>
+    <string name="news_section_in_trash">In Trash</string>
+    <!-- %1$s is the source site; %2$s is how long ago the article was saved, archived or trashed. -->
+    <string name="news_article_meta">%1$s · %2$s</string>
+    <string name="news_swipe_hint">Swipe a card left to archive, right to trash</string>
+    <string name="news_trash_note">Items in Trash keep their content. Open one and tap Restore to bring it back.</string>
+    <string name="news_loading">Loading articles</string>
+    <string name="news_load_failed">Couldn\'t load articles.</string>
+    <string name="news_stale">Couldn\'t refresh. These articles may be out of date.</string>
+    <string name="news_empty_active_title">No articles yet</string>
+    <string name="news_empty_active_body">Articles saved to your newsfeed appear here.</string>
+    <string name="news_empty_archive_title">Nothing archived</string>
+    <string name="news_empty_archive_body">Swipe an Active article left to archive it.</string>
+    <string name="news_empty_trash_title">Trash is empty</string>
+    <string name="news_empty_trash_body">Articles you move to Trash appear here.</string>
+
+    <string name="article_loading">Loading article</string>
+    <string name="article_load_failed">Couldn\'t load the article.</string>
+    <!-- %1$s is the date the article was saved, such as Nov 25, 2026. -->
+    <string name="article_saved_on">Saved %1$s</string>
+    <string name="article_no_saved_body">The full article is not saved here. Open the original to read it.</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_server">Server</string>
+    <string name="settings_change_server">Change server</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_signed_in">Signed in</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Material You colors</string>
+    <string name="settings_dynamic_color_summary">Use colors from your wallpaper instead of the newsprint theme</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_change_server_title">Change server?</string>
+    <!-- %1$s is the server address, such as news.example.com. -->
+    <string name="settings_change_server_message">You will be signed out of %1$s. Articles saved on this phone from that server will be removed.</string>
+    <string name="settings_change_server_server_kept">Nothing is deleted on the server.</string>
 </resources>

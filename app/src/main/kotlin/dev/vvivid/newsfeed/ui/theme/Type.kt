@@ -5,6 +5,7 @@ import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
@@ -31,6 +32,22 @@ internal val NewsfeedTypography =
         titleMedium = MaterialBaseline.titleMedium.inSourceSerif(FontWeight.SemiBold),
         titleSmall = MaterialBaseline.titleSmall.inSourceSerif(FontWeight.SemiBold),
     )
+
+/** Article body text: Source Serif 4 at a size for long reading, as in the design's article screen. */
+internal val ArticleBodyTextStyle =
+    TextStyle(
+        fontFamily = sourceSerif4(opticalSize = 18.sp),
+        fontWeight = FontWeight.Normal,
+        fontSize = 18.sp,
+        lineHeight = 29.sp,
+        letterSpacing = 0.sp,
+    )
+
+/**
+ * The summary above an article's body. The bundled font has no italic styles, so Android slants
+ * the upright glyphs.
+ */
+internal val ArticleSummaryTextStyle = ArticleBodyTextStyle.copy(fontStyle = FontStyle.Italic, lineHeight = 27.sp)
 
 private fun TextStyle.inSourceSerif(weight: FontWeight): TextStyle =
     copy(

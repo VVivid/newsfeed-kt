@@ -1,0 +1,241 @@
+package dev.vvivid.newsfeed.reader
+
+import org.commonmark.node.BlockQuote
+import org.commonmark.node.BulletList
+import org.commonmark.node.Code
+import org.commonmark.node.Emphasis
+import org.commonmark.node.FencedCodeBlock
+import org.commonmark.node.HardLineBreak
+import org.commonmark.node.Heading
+import org.commonmark.node.Image
+import org.commonmark.node.IndentedCodeBlock
+import org.commonmark.node.Link
+import org.commonmark.node.Node
+import org.commonmark.node.OrderedList
+import org.commonmark.node.Paragraph
+import org.commonmark.node.SoftLineBreak
+import org.commonmark.node.StrongEmphasis
+import org.commonmark.node.Text
+import org.commonmark.node.ThematicBreak
+import org.commonmark.parser.Parser
+import java.net.URI
+import java.net.URISyntaxException
+
+/** One block of an article's saved body, ready to display. */
+sealed interface BodyBlock {
+    /** A heading; [level] is 1 for the largest and at most 6. */
+    data class Heading(
+        val level: Int,
+        val text: BodyText,
+    ) : BodyBlock
+
+    data class Paragraph(
+        val text: BodyText,
+    ) : BodyBlock
+
+    data class Quote(
+        val blocks: List<BodyBlock>,
+    ) : BodyBlock
+
+    /** A list whose items are blocks themselves. Numbered from [firstNumber], or bulleted if null. */
+    data class ListBlock(
+        val firstNumber: Int?,
+        val items: List<List<BodyBlock>>,
+    ) : BodyBlock
+
+    /** Preformatted text, shown in a monospace font without wrapping. */
+    data class CodeBlock(
+        val code: String,
+    ) : BodyBlock
+
+    /** A horizontal rule between sections. */
+    data object Rule : BodyBlock
+}
+
+/** A block's text, with the [ranges] that are styled or linked. */
+data class BodyText(
+    val text: String,
+    val ranges: List<StyledRange> = emptyList(),
+)
+
+/** [style] applies to `text[start until end]` of a [BodyText]. */
+data class StyledRange(
+    val style: InlineStyle,
+    val start: Int,
+    val end: Int,
+)
+
+sealed interface InlineStyle {
+    data object Emphasis : InlineStyle
+
+    data object Strong : InlineStyle
+
+    data object Code : InlineStyle
+
+    /** A link to [url], an absolute http or https address (see [resolveLinkUrl]). */
+    data class Link(
+        val url: String,
+    ) : InlineStyle
+}
+
+/**
+ * Turns an article's saved Markdown into blocks to display, following CommonMark.
+ *
+ * The Markdown is untrusted, so only plain text and styling come out of it. Raw HTML is dropped,
+ * as in the server's web reader; text between HTML tags stays. A link keeps its destination only
+ * if [resolveLinkUrl] accepts it against [sourceUrl]. Images show their alt text, because article
+ * images load only through the server.
+ *
+ * Parsing a long article takes a while: call this off the main thread.
+ */
+fun parseArticleBody(
+    markdown: String,
+    sourceUrl: String,
+): List<BodyBlock> = BodyBuilder(sourceUrl).blocks(MarkdownParser.parse(markdown))
+
+/**
+ * Nested quotes and lists beyond this depth are read as text. The limit keeps hostile input from
+ * nesting deep enough to exhaust the stack when the body is converted and laid out.
+ */
+private const val MAX_OPEN_BLOCKS = 16
+
+/** CommonMark parsers are immutable and thread-safe, so one serves every article. */
+private val MarkdownParser: Parser = Parser.builder().maxOpenBlockParsers(MAX_OPEN_BLOCKS).build()
+
+/** Converts a parsed CommonMark document into [BodyBlock]s. */
+private class BodyBuilder(
+    private val sourceUrl: String,
+) {
+    fun blocks(parent: Node): List<BodyBlock> = parent.children().mapNotNull(::block).toList()
+
+    private fun block(node: Node): BodyBlock? =
+        when (node) {
+            is Heading -> text(node)?.let { BodyBlock.Heading(node.level, it) }
+
+            is Paragraph -> text(node)?.let { BodyBlock.Paragraph(it) }
+
+            is BlockQuote -> blocks(node).ifEmpty { null }?.let { BodyBlock.Quote(it) }
+
+            is BulletList -> listBlock(node, firstNumber = null)
+
+            is OrderedList -> listBlock(node, firstNumber = node.markerStartNumber ?: 1)
+
+            is FencedCodeBlock -> codeBlock(node.literal)
+
+            is IndentedCodeBlock -> codeBlock(node.literal)
+
+            is ThematicBreak -> BodyBlock.Rule
+
+            // Raw HTML blocks are never shown. Link reference definitions only feed links.
+            else -> null
+        }
+
+    /** Empty items stay, as in CommonMark, so that the numbers of the items after them stay right. */
+    private fun listBlock(
+        list: Node,
+        firstNumber: Int?,
+    ): BodyBlock = BodyBlock.ListBlock(firstNumber, items = list.children().map(::blocks).toList())
+
+    private fun codeBlock(literal: String?): BodyBlock? =
+        literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.CodeBlock(it) }
+
+    /** The inline content of [block], or null if nothing visible is left. */
+    private fun text(block: Node): BodyText? = InlineTextBuilder(sourceUrl).apply { appendChildren(block) }.build()
+}
+
+/** Flattens a block's inline nodes into one string and the ranges styled within it. */
+private class InlineTextBuilder(
+    private val sourceUrl: String,
+) {
+    private val text = StringBuilder()
+    private val ranges = mutableListOf<StyledRange>()
+
+    fun build(): BodyText? = if (text.isBlank()) null else BodyText(text.toString(), ranges.toList())
+
+    fun appendChildren(parent: Node) {
+        for (child in parent.children()) append(child)
+    }
+
+    private fun append(node: Node) {
+        when (node) {
+            is Text -> {
+                text.append(node.literal)
+            }
+
+            is SoftLineBreak -> {
+                text.append(' ')
+            }
+
+            is HardLineBreak -> {
+                text.append('\n')
+            }
+
+            is Code -> {
+                styled(InlineStyle.Code) { text.append(node.literal) }
+            }
+
+            is Emphasis -> {
+                styled(InlineStyle.Emphasis) { appendChildren(node) }
+            }
+
+            is StrongEmphasis -> {
+                styled(InlineStyle.Strong) { appendChildren(node) }
+            }
+
+            is Link -> {
+                val url = resolveLinkUrl(node.destination, sourceUrl)
+                if (url == null) appendChildren(node) else styled(InlineStyle.Link(url)) { appendChildren(node) }
+            }
+
+            // The children of an image are its alt text.
+            is Image -> {
+                styled(InlineStyle.Emphasis) { appendChildren(node) }
+            }
+
+            // Raw inline HTML is dropped.
+            else -> {
+                Unit
+            }
+        }
+    }
+
+    private inline fun styled(
+        style: InlineStyle,
+        appendContent: () -> Unit,
+    ) {
+        val start = text.length
+        appendContent()
+        if (text.length > start) ranges += StyledRange(style, start, text.length)
+    }
+}
+
+private fun Node.children(): Sequence<Node> = generateSequence(firstChild) { it.next }
+
+/**
+ * The address a link in an article opens, or null if it may not be opened: the link then shows as
+ * plain text.
+ *
+ * As in the server's web reader, relative, protocol-relative and fragment links resolve against
+ * the article's [sourceUrl], because they belong to the source site. Only http and https results
+ * with a host are accepted; `javascript:`, `data:`, `mailto:` and every other scheme are not.
+ */
+internal fun resolveLinkUrl(
+    destination: String?,
+    sourceUrl: String,
+): String? {
+    val target = destination?.trim().orEmpty()
+    // java.net.URI resolves an empty reference to the parent directory, not to the page itself.
+    if (target.isEmpty()) return null
+    val resolved =
+        try {
+            URI(sourceUrl).resolve(target)
+        } catch (e: URISyntaxException) {
+            return null
+        } catch (e: IllegalArgumentException) {
+            return null
+        }
+    val scheme = resolved.scheme?.lowercase()
+    if (scheme != "http" && scheme != "https") return null
+    if (resolved.host.isNullOrEmpty()) return null
+    return resolved.toString()
+}
