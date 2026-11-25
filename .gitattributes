@@ -1,0 +1,14 @@
+# Keep LF in the repository and working tree on every platform.
+* text=auto eol=lf
+
+# Windows scripts need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.jar binary

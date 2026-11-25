@@ -1,0 +1,56 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+*.iml
+.idea/
+.vscode/
+.fleet/
+
+# Gradle and Android build output
+.gradle/
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# Local machine configuration (may contain SDK paths or secrets)
+local.properties
+keystore.properties
+signing.properties
+secrets.properties
+gradle-local.properties
+
+# Signing material: never commit
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.der
+*.p8
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+google-services.json
+credentials*.json
+*service-account*.json
+
+# Logs and captures that may hold tokens or personal data
+*.log
+*.har
+*.hprof
+
+# Temporary agent plans and handoffs at any depth
+.development/
+
+# Claude Code local settings
+.claude/settings.local.json
