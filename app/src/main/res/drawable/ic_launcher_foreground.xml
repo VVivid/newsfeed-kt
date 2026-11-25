@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The onboarding "N" mark: the Source Serif 4 Bold glyph outline, centered in the icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40.34 67.91V66.04L44.49 65.46H45.64L50.52 66.04V67.91ZM43.8 67.91V41.01H46.1V53.95V67.91ZM57.52 41.87V40H67.66V41.87L63.76 42.45H62.64ZM61.05 68 45.71 45.47H45.58L43.39 42.16L40.59 41.89V40H49.87L62.77 58.82L62 58.99V52.69V40H64.31V68Z" />
+</vector>

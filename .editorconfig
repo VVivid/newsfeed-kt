@@ -11,5 +11,13 @@ indent_size = 4
 [*.{yml,yaml,json,toml}]
 indent_size = 2
 
+[*.{kt,kts}]
+# Composable functions are UpperCamelCase nouns, per the Compose API guidelines.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
 [*.md]
+trim_trailing_whitespace = false
+
+# Third-party license texts are kept byte-for-byte as published.
+[app/src/main/assets/licenses/*.txt]
 trim_trailing_whitespace = false

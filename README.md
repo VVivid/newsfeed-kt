@@ -27,8 +27,28 @@ server, built with Kotlin, Jetpack Compose and Material 3.
 ## Development
 
 Read [AGENTS.md](AGENTS.md), the [development workflow](docs/DEVELOPMENT-WORKFLOW.md)
-and the [Kotlin and Android practices](docs/KOTLIN_BEST_PRACTICES.md). Build
-instructions will be added with the Gradle project.
+and the [Kotlin and Android practices](docs/KOTLIN_BEST_PRACTICES.md).
+
+### Build
+
+You need JDK 17 and the Android SDK with platform 36 (`platforms;android-36`) and
+build tools 36.0.0. Point Gradle at the SDK with the `ANDROID_HOME` environment
+variable or a `local.properties` file in the project root, which Git ignores:
+
+```properties
+sdk.dir=/path/to/Android/sdk
+```
+
+The Gradle wrapper downloads the pinned Gradle version on first use.
+
+```sh
+./gradlew assembleDebug    # app/build/outputs/apk/debug/app-debug.apk
+./gradlew spotlessApply    # format Kotlin sources and Gradle scripts
+./gradlew spotlessCheck lint testDebugUnitTest assembleDebug    # the checks CI runs
+```
+
+Release builds (`./gradlew assembleRelease`) are minified with R8 and unsigned;
+signing configuration stays outside this repository.
 
 ## Security
 
@@ -39,3 +59,8 @@ vulnerabilities.
 ## License
 
 [MIT](LICENSE)
+
+Headings use [Source Serif 4](https://github.com/adobe-fonts/source-serif) by Adobe,
+bundled unmodified from Google Fonts as `app/src/main/res/font/source_serif_4.ttf`
+under the SIL Open Font License 1.1. Its license ships inside the app as
+[`app/src/main/assets/licenses/SourceSerif4-OFL.txt`](app/src/main/assets/licenses/SourceSerif4-OFL.txt).

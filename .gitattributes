@@ -12,3 +12,6 @@
 *.ttf binary
 *.otf binary
 *.jar binary
+
+# Third-party license texts are kept byte-for-byte as published, trailing spaces included.
+app/src/main/assets/licenses/*.txt whitespace=-trailing-space
