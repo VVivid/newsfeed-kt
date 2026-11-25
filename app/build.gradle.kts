@@ -41,11 +41,13 @@ android {
     lint {
         abortOnError = true
         warningsAsErrors = true
-        // These checks compare pinned versions with whatever was published most recently, so as
-        // errors an upstream release would fail an unchanged build. They stay in the lint report as
-        // information (owner decision, 2026-11-25); upgrades are deliberate changes to
-        // gradle/libs.versions.toml.
-        informational += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable")
+        // These checks compare pinned versions with whatever was published most recently (or, for
+        // OldTargetApi, the newest platform installed in the SDK), so as errors an upstream release
+        // would fail an unchanged build. They stay in the lint report as information (owner
+        // decisions, 2026-11-25); upgrades are deliberate changes to gradle/libs.versions.toml and
+        // the SDK levels in this file.
+        informational +=
+            setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable", "OldTargetApi")
     }
 }
 
