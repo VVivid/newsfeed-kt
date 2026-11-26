@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +62,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -77,7 +80,7 @@ import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.ui.component.LoadFailedMessage
 import dev.vvivid.newsfeed.ui.component.LoadingIndicator
 import dev.vvivid.newsfeed.ui.component.Notice
-import dev.vvivid.newsfeed.ui.cover.FallbackCover
+import dev.vvivid.newsfeed.ui.cover.ArticleCover
 import dev.vvivid.newsfeed.ui.preview.PreviewSampleData
 import dev.vvivid.newsfeed.ui.preview.PreviewSamples
 import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
@@ -103,6 +106,7 @@ fun NewsRoute(
         now = now,
         onShelfSelect = viewModel::selectShelf,
         onRefresh = viewModel::refresh,
+        onLoadMore = viewModel::loadMore,
         onArticleClick = onOpenArticle,
         onArchive = viewModel::archive,
         onMoveToTrash = viewModel::moveToTrash,
@@ -123,6 +127,7 @@ fun NewsScreen(
     now: Instant,
     onShelfSelect: (Shelf) -> Unit,
     onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
     onArticleClick: (Article) -> Unit,
     onArchive: (Article) -> Unit,
     onMoveToTrash: (Article) -> Unit,
@@ -171,6 +176,7 @@ fun NewsScreen(
                         now = now,
                         contentPadding = listPadding,
                         onRefresh = onRefresh,
+                        onLoadMore = onLoadMore,
                         onArticleClick = onArticleClick,
                         onArchive = onArchive,
                         onMoveToTrash = onMoveToTrash,
@@ -234,6 +240,14 @@ private val NewsMessage.textRes: Int
                     ArticleMove.Trash -> R.string.message_undo_move_to_trash_failed
                 }
             }
+
+            NewsMessage.ChangedOnServer -> {
+                R.string.message_changed_on_server_list
+            }
+
+            NewsMessage.ChangeNotAllowed -> {
+                R.string.message_change_not_allowed
+            }
         }
 
 // TopAppBar is still experimental in Material 3.
@@ -295,7 +309,7 @@ private val Shelf.labelRes: Int
         }
 
 /** Keys of the list items that are not articles. Article items use their IDs, which are strings. */
-private enum class ListItemKey { StaleNotice, TrashNote, Empty, LatestLabel, EarlierLabel, ShelfLabel, SwipeHint }
+private enum class ListItemKey { StaleNotice, TrashNote, Empty, LatestLabel, EarlierLabel, ShelfLabel, SwipeHint, MoreArticles }
 
 @Composable
 private fun ArticleList(
@@ -304,6 +318,7 @@ private fun ArticleList(
     now: Instant,
     contentPadding: PaddingValues,
     onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
     onArticleClick: (Article) -> Unit,
     onArchive: (Article) -> Unit,
     onMoveToTrash: (Article) -> Unit,
@@ -354,6 +369,47 @@ private fun ArticleList(
                     }
                 }
             }
+            if (content.hasMore) {
+                item(key = ListItemKey.MoreArticles) {
+                    MoreArticles(content, onLoadMore, modifier = Modifier.animateItem())
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The end of the loaded articles when the shelf has more. Coming into view loads the next page;
+ * if that fails, it offers to try again.
+ */
+@Composable
+private fun MoreArticles(
+    content: ShelfContent.Loaded,
+    onLoadMore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+    val loadingDescription = stringResource(R.string.news_loading_more)
+    // Runs again whenever the shelf's state changes while this is in view: after a page arrives, or
+    // after a reload stopped a page that was loading. The view model ignores a call while it loads.
+    LaunchedEffect(content) {
+        if (!content.isLoadingMore && !content.loadMoreFailed) currentOnLoadMore()
+    }
+    Box(modifier = modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        if (content.loadMoreFailed) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.news_load_more_failed),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onLoadMore) { Text(stringResource(R.string.action_retry)) }
+            }
+        } else {
+            CircularProgressIndicator(
+                modifier = Modifier.size(32.dp).semantics { contentDescription = loadingDescription },
+            )
         }
     }
 }
@@ -531,7 +587,7 @@ private fun LeadArticleCard(
 ) {
     ArticleCard(onClick = onClick, modifier = modifier) {
         Column {
-            FallbackCover(articleUrl = article.url, modifier = Modifier.fillMaxWidth().height(176.dp))
+            ArticleCover(article, modifier = Modifier.fillMaxWidth().height(176.dp))
             Column(
                 modifier = Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -571,10 +627,7 @@ private fun CompactArticleCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            FallbackCover(
-                articleUrl = article.url,
-                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
-            )
+            ArticleCover(article, modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)))
         }
     }
 }
@@ -699,6 +752,7 @@ private fun NewsScreenPreview(
             now = PreviewSamples.now,
             onShelfSelect = {},
             onRefresh = {},
+            onLoadMore = {},
             onArticleClick = {},
             onArchive = {},
             onMoveToTrash = {},

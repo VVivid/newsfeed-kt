@@ -3,9 +3,13 @@ package dev.vvivid.newsfeed.news
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.vvivid.newsfeed.data.Article
+import dev.vvivid.newsfeed.data.ArticlePage
 import dev.vvivid.newsfeed.data.NewsRepository
+import dev.vvivid.newsfeed.data.PermissionDeniedException
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.data.ShelfOrder
+import dev.vvivid.newsfeed.data.isArticleChangedOnServer
+import dev.vvivid.newsfeed.data.resultOf
 import dev.vvivid.newsfeed.data.resultOrNull
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,16 +35,25 @@ sealed interface ShelfContent {
     data object LoadFailed : ShelfContent
 
     /**
-     * The shelf's articles in [ShelfOrder]; empty when the shelf has none.
+     * The shelf's articles loaded so far, in [ShelfOrder]; empty when the shelf has none.
      *
+     * @property nextCursor continues the shelf after [articles]; null when they are all of it.
      * @property isRefreshing a reload is running while these articles stay on screen.
      * @property isStale the last reload failed, so these articles may be out of date.
+     * @property isLoadingMore the next page is loading.
+     * @property loadMoreFailed loading the next page failed; it can be tried again.
      */
     data class Loaded(
         val articles: List<Article>,
+        val nextCursor: String? = null,
         val isRefreshing: Boolean = false,
         val isStale: Boolean = false,
-    ) : ShelfContent
+        val isLoadingMore: Boolean = false,
+        val loadMoreFailed: Boolean = false,
+    ) : ShelfContent {
+        val hasMore: Boolean
+            get() = nextCursor != null
+    }
 }
 
 /** What a swipe on an Active article does. */
@@ -58,8 +71,8 @@ sealed interface NewsMessage {
     ) : NewsMessage
 
     /**
-     * [move] failed: the server rejected it or could not be reached. The article is back on
-     * Active.
+     * [move] failed: the server could not be reached or did not answer usefully. The article is
+     * back on Active.
      */
     data class MoveFailed(
         val move: ArticleMove,
@@ -69,19 +82,29 @@ sealed interface NewsMessage {
     data class UndoFailed(
         val move: ArticleMove,
     ) : NewsMessage
+
+    /**
+     * A move or an undo found that the article had changed on the server, for example in the web
+     * reader, so the server refused it. The shelf is reloaded to show the server's state.
+     */
+    data object ChangedOnServer : NewsMessage
+
+    /** The server refused a move or an undo because the sign-in does not allow changes. */
+    data object ChangeNotAllowed : NewsMessage
 }
 
 /**
- * Loads the selected shelf from [repository] and carries out swipes on Active articles.
+ * Loads the selected shelf from [repository], page by page, and carries out swipes on Active
+ * articles.
  *
  * A swipe shows its result before the server confirms it:
  * 1. [archive] or [moveToTrash] takes the article out of the list at once and asks the server to
  *    move it.
  * 2. If the server moves it, [NewsUiState.message] becomes [NewsMessage.Moved], whose snackbar
- *    offers Undo. If the move fails, the article goes back where it was and the message is
- *    [NewsMessage.MoveFailed].
+ *    offers Undo. If the move fails, the article goes back where it was and the message says why.
+ *    If the server refused it because the article had changed, the shelf is reloaded instead.
  * 3. [undo] asks the server to move the article back to Active. If that fails, the article stays
- *    where the move put it and the message is [NewsMessage.UndoFailed].
+ *    where the move put it and the message says so.
  *
  * Each article the server returns from a move or an undo is placed by its new shelf: into the
  * shown list if it belongs there, out of it otherwise. This keeps the shown shelf consistent with
@@ -95,6 +118,9 @@ class NewsViewModel(
 
     /** The running load of the shown shelf. A newer load cancels it, so its result is dropped. */
     private var loadJob: Job? = null
+
+    /** The running load of the shown shelf's next page; any newer load cancels it. */
+    private var loadMoreJob: Job? = null
 
     init {
         load(Shelf.Active)
@@ -115,7 +141,7 @@ class NewsViewModel(
         _uiState.update { state ->
             val content =
                 when (val current = state.content) {
-                    is ShelfContent.Loaded -> current.copy(isRefreshing = true)
+                    is ShelfContent.Loaded -> current.copy(isRefreshing = true, isLoadingMore = false)
                     ShelfContent.Loading, ShelfContent.LoadFailed -> ShelfContent.Loading
                 }
             state.copy(content = content)
@@ -123,15 +149,21 @@ class NewsViewModel(
         load(_uiState.value.shelf)
     }
 
+    /**
+     * Loads [shelf] from its start. A reload fetches at least as many articles as are on screen, so
+     * that the list keeps its length and the user keeps their place in it.
+     */
     private fun load(shelf: Shelf) {
         loadJob?.cancel()
+        loadMoreJob?.cancel()
+        val shownCount = (_uiState.value.content as? ShelfContent.Loaded)?.articles?.size ?: 0
         loadJob =
             viewModelScope.launch {
-                val articles = resultOrNull { repository.listArticles(shelf) }
+                val page = resultOrNull { loadFromStart(shelf, minimumCount = shownCount) }
                 _uiState.update { state ->
                     val content =
                         when {
-                            articles != null -> ShelfContent.Loaded(articles)
+                            page != null -> ShelfContent.Loaded(page.articles, page.nextCursor)
 
                             // Keep what is on screen rather than replacing it with an error.
                             state.content is ShelfContent.Loaded -> state.content.copy(isRefreshing = false, isStale = true)
@@ -139,6 +171,47 @@ class NewsViewModel(
                             else -> ShelfContent.LoadFailed
                         }
                     state.copy(content = content)
+                }
+            }
+    }
+
+    /** Pages of [shelf] from its start, until there are [minimumCount] articles or the shelf ends. */
+    private suspend fun loadFromStart(
+        shelf: Shelf,
+        minimumCount: Int,
+    ): ArticlePage {
+        val articles = mutableListOf<Article>()
+        var cursor: String? = null
+        do {
+            val page = repository.listArticles(shelf, cursor)
+            articles.addNew(page.articles)
+            cursor = page.nextCursor
+        } while (cursor != null && articles.size < minimumCount.coerceAtMost(MAX_RELOADED_ARTICLES))
+        return ArticlePage(articles, cursor)
+    }
+
+    /**
+     * Loads the shown shelf's next page, when the user reaches the end of the loaded articles. Does
+     * nothing when there is no next page, or while a load is running.
+     */
+    fun loadMore() {
+        val shelf = _uiState.value.shelf
+        val loaded = _uiState.value.content as? ShelfContent.Loaded ?: return
+        val cursor = loaded.nextCursor ?: return
+        if (loaded.isLoadingMore || loadJob?.isActive == true) return
+        _uiState.update { state -> state.withLoaded { it.copy(isLoadingMore = true, loadMoreFailed = false) } }
+        loadMoreJob =
+            viewModelScope.launch {
+                val page = resultOrNull { repository.listArticles(shelf, cursor) }
+                _uiState.update { state ->
+                    state.withLoaded { content ->
+                        if (page == null) {
+                            content.copy(isLoadingMore = false, loadMoreFailed = true)
+                        } else {
+                            val articles = content.articles.toMutableList().apply { addNew(page.articles) }
+                            content.copy(articles = articles, nextCursor = page.nextCursor, isLoadingMore = false)
+                        }
+                    }
                 }
             }
     }
@@ -156,20 +229,28 @@ class NewsViewModel(
         // The swiped card disappears at once instead of waiting for the server.
         _uiState.update { it.withArticleRemoved(article.id) }
         viewModelScope.launch {
-            val moved =
-                resultOrNull {
+            val result =
+                resultOf {
                     when (move) {
                         ArticleMove.Archive -> repository.setArchived(article.id, article.revision, archived = true)
                         ArticleMove.Trash -> repository.moveToTrash(article.id, article.revision)
                     }
                 }
+            val moved = result.getOrNull()
+            val failure = result.exceptionOrNull()
             _uiState.update { state ->
-                if (moved != null) {
-                    state.withArticlePlaced(moved).copy(message = NewsMessage.Moved(moved, move))
-                } else {
-                    state.withArticlePlaced(article).copy(message = NewsMessage.MoveFailed(move))
+                when {
+                    moved != null -> state.withArticlePlaced(moved).copy(message = NewsMessage.Moved(moved, move))
+
+                    // The swiped article stays out of the list until the reload shows where it is now.
+                    failure.isArticleChangedOnServer() -> state.copy(message = NewsMessage.ChangedOnServer)
+
+                    failure is PermissionDeniedException -> state.withArticlePlaced(article).copy(message = NewsMessage.ChangeNotAllowed)
+
+                    else -> state.withArticlePlaced(article).copy(message = NewsMessage.MoveFailed(move))
                 }
             }
+            if (failure.isArticleChangedOnServer()) refresh()
         }
     }
 
@@ -178,20 +259,24 @@ class NewsViewModel(
         _uiState.update { it.copy(message = null) }
         viewModelScope.launch {
             val article = moved.article
-            val restored =
-                resultOrNull {
+            val result =
+                resultOf {
                     when (moved.move) {
                         ArticleMove.Archive -> repository.setArchived(article.id, article.revision, archived = false)
                         ArticleMove.Trash -> repository.restoreFromTrash(article.id, article.revision)
                     }
                 }
+            val restored = result.getOrNull()
+            val failure = result.exceptionOrNull()
             _uiState.update { state ->
-                if (restored != null) {
-                    state.withArticlePlaced(restored)
-                } else {
-                    state.copy(message = NewsMessage.UndoFailed(moved.move))
+                when {
+                    restored != null -> state.withArticlePlaced(restored)
+                    failure.isArticleChangedOnServer() -> state.copy(message = NewsMessage.ChangedOnServer)
+                    failure is PermissionDeniedException -> state.copy(message = NewsMessage.ChangeNotAllowed)
+                    else -> state.copy(message = NewsMessage.UndoFailed(moved.move))
                 }
             }
+            if (failure.isArticleChangedOnServer()) refresh()
         }
     }
 
@@ -199,24 +284,43 @@ class NewsViewModel(
     fun messageShown(message: NewsMessage) {
         _uiState.update { if (it.message == message) it.copy(message = null) else it }
     }
+
+    private companion object {
+        /** A reload stops after this many articles even if more were on screen; the rest page in again. */
+        const val MAX_RELOADED_ARTICLES = 250
+    }
 }
 
-private fun NewsUiState.withArticleRemoved(articleId: String): NewsUiState {
-    val loaded = content as? ShelfContent.Loaded ?: return this
-    return copy(content = loaded.copy(articles = loaded.articles.filterNot { it.id == articleId }))
+/** Adds the articles of [page] that are not in this list yet, in their order. */
+private fun MutableList<Article>.addNew(page: List<Article>) {
+    val known = mapTo(HashSet()) { it.id }
+    page.filterTo(this) { known.add(it.id) }
 }
+
+private inline fun NewsUiState.withLoaded(change: (ShelfContent.Loaded) -> ShelfContent.Loaded): NewsUiState {
+    val loaded = content as? ShelfContent.Loaded ?: return this
+    return copy(content = change(loaded))
+}
+
+private fun NewsUiState.withArticleRemoved(articleId: String): NewsUiState =
+    withLoaded { loaded -> loaded.copy(articles = loaded.articles.filterNot { it.id == articleId }) }
 
 /**
  * Puts [article] where it now belongs: into the shown list at its place in [ShelfOrder] if it is on
- * the shown shelf, and out of the list otherwise.
+ * the shown shelf, and out of the list otherwise. An article that sorts after every loaded one
+ * belongs to a page that is not loaded yet, unless the shelf has no more pages.
  */
-private fun NewsUiState.withArticlePlaced(article: Article): NewsUiState {
-    val loaded = content as? ShelfContent.Loaded ?: return this
-    val others = loaded.articles.filterNot { it.id == article.id }
-    if (article.shelf != shelf) return copy(content = loaded.copy(articles = others))
-
-    // Just before the first article that sorts after it; at the end if none does.
-    val index = others.indexOfFirst { ShelfOrder.compare(article, it) < 0 }.takeIf { it >= 0 } ?: others.size
-    val articles = others.toMutableList().apply { add(index, article) }
-    return copy(content = loaded.copy(articles = articles))
-}
+private fun NewsUiState.withArticlePlaced(article: Article): NewsUiState =
+    withLoaded { loaded ->
+        val others = loaded.articles.filterNot { it.id == article.id }
+        // Just before the first article that sorts after it.
+        val index = others.indexOfFirst { ShelfOrder.compare(article, it) < 0 }
+        val articles =
+            when {
+                article.shelf != shelf -> others
+                index >= 0 -> others.toMutableList().apply { add(index, article) }
+                loaded.hasMore -> others
+                else -> others + article
+            }
+        loaded.copy(articles = articles)
+    }

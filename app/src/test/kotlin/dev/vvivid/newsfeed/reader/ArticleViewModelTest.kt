@@ -2,6 +2,7 @@ package dev.vvivid.newsfeed.reader
 
 import dev.vvivid.newsfeed.MainDispatcherRule
 import dev.vvivid.newsfeed.data.FakeNewsRepository
+import dev.vvivid.newsfeed.data.PermissionDeniedException
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.data.testArticle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,9 +52,29 @@ class ArticleViewModelTest {
         }
 
     @Test
-    fun `an article in Trash is only found when opened from Trash`() =
+    fun `an article that moved into Trash since it was opened is still found`() =
         runTest {
+            // As after the reader moved it to Trash and Android restarted the app with the reader's
+            // original arguments.
             val viewModel = articleViewModel("trashed", inTrash = false)
+            advanceUntilIdle()
+
+            assertEquals(trashed, viewModel.loaded().article)
+        }
+
+    @Test
+    fun `an article that left Trash since it was opened is still found`() =
+        runTest {
+            val viewModel = articleViewModel("active", inTrash = true)
+            advanceUntilIdle()
+
+            assertEquals(active, viewModel.loaded().article)
+        }
+
+    @Test
+    fun `an article that is nowhere fails to load`() =
+        runTest {
+            val viewModel = articleViewModel("missing", inTrash = false)
             advanceUntilIdle()
 
             assertEquals(ArticleUiState.LoadFailed, viewModel.uiState.value)
@@ -117,6 +138,37 @@ class ArticleViewModelTest {
             assertEquals(active, state.article)
             assertFalse(state.isUpdating)
             assertEquals(ArticleMessage.Failed(ArticleAction.MoveToTrash), state.message)
+        }
+
+    @Test
+    fun `a change refused because the article changed on the server shows the article as it is now`() =
+        runTest {
+            val viewModel = loadedViewModel("active", inTrash = false)
+            // Archived in the web reader meanwhile: the reader's copy has a stale revision.
+            val archivedElsewhere = active.copy(revision = 2, archivedAt = active.createdAt)
+            repository.replace(archivedElsewhere)
+
+            viewModel.perform(ArticleAction.MoveToTrash)
+            advanceUntilIdle()
+
+            val state = viewModel.loaded()
+            assertEquals(archivedElsewhere, state.article)
+            assertFalse(state.isUpdating)
+            assertEquals(ArticleMessage.ChangedOnServer, state.message)
+            assertEquals(Shelf.Archive, repository.article("active").shelf)
+        }
+
+    @Test
+    fun `a change the sign-in does not allow keeps the article and says so`() =
+        runTest {
+            val viewModel = loadedViewModel("active", inTrash = false)
+            repository.failure = PermissionDeniedException()
+
+            viewModel.perform(ArticleAction.Archive)
+            advanceUntilIdle()
+
+            assertEquals(active, viewModel.loaded().article)
+            assertEquals(ArticleMessage.ChangeNotAllowed, viewModel.loaded().message)
         }
 
     @Test

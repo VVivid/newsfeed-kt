@@ -4,9 +4,10 @@ A native Android reader for a self-hosted
 [AgentNewsfeed](https://github.com/VVivid/vvivid-workspace/tree/main/AgentNewsfeed)
 server, built with Kotlin, Jetpack Compose and Material 3.
 
-> **Status:** early development. The app is not usable yet.
+> **Status:** early development. Sign-in, reading and moving articles between
+> Active, Archive and Trash work; finished-reading tracking is not built yet.
 
-## Planned features
+## Features
 
 - **Your own server.** No server address is built in. Enter your server's address
   when you first open the app; change it later in Settings.
@@ -14,15 +15,26 @@ server, built with Kotlin, Jetpack Compose and Material 3.
   (OAuth 2.0 authorization code with PKCE). The app never sees your password.
 - **News** with Active, Archive and Trash, an article reader for saved Markdown,
   and source thumbnails or generated fallback covers.
-- **Open original** in an in-app Chrome Custom Tab, with finished-reading
-  tracking.
+- **Open original** in a Chrome Custom Tab. Planned: finished-reading tracking.
 - Light and dark newsprint themes, optional Material You colors.
 
 ## Requirements
 
-- An AgentNewsfeed server that supports native-app sign-in (token-based API
-  access). Server-side support is tracked separately in the server's repository.
 - Android 8.0 (API 26) or newer.
+- An AgentNewsfeed server with native app access turned on for the client ID
+  `newsfeed-android`. The app finds the server's identity provider through the
+  server's `/.well-known/oauth-protected-resource/api/v1` metadata.
+- In that OpenID Connect provider, a public client `newsfeed-android` with the
+  authorization code flow and PKCE S256, the redirect URI
+  `dev.vvivid.newsfeed:/oauth2redirect`, and the scopes `newsfeed:read` and
+  `newsfeed:articles:write`. Every authorization, token and refresh request names
+  the API, `https://<server>/api/v1`, as its `resource` (RFC 8707), so the provider
+  must issue tokens for that audience.
+- Optionally, the `offline_access` scope for that client. The app asks for it, so
+  that it stays signed in for as long as the provider keeps offline sessions; without
+  it the app uses an ordinary session, which ends with the provider's browser
+  session. If the provider lists `offline_access` in the access token's `scope`, the
+  server has to accept that scope too.
 
 ## Development
 
@@ -64,3 +76,6 @@ Headings use [Source Serif 4](https://github.com/adobe-fonts/source-serif) by Ad
 bundled unmodified from Google Fonts as `app/src/main/res/font/source_serif_4.ttf`
 under the SIL Open Font License 1.1. Its license ships inside the app as
 [`app/src/main/assets/licenses/SourceSerif4-OFL.txt`](app/src/main/assets/licenses/SourceSerif4-OFL.txt).
+
+The app's open-source libraries are listed in Settings, under Open-source licenses,
+with the license texts from [`app/src/main/assets/licenses/`](app/src/main/assets/licenses/).

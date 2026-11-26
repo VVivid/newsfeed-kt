@@ -2,10 +2,13 @@ package dev.vvivid.newsfeed.news
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -91,6 +94,17 @@ class NewsScreenTest {
         composeRule.onNodeWithText("Couldn't load articles.").assertDoesNotExist()
     }
 
+    @Test
+    fun `reaching the end of the loaded articles loads the next page`() {
+        // The first page holds only the lead and the earlier article.
+        val third = testArticle("third", savedHoursAgo = 3)
+        setNewsRoute(FakeNewsRepository(listOf(lead, earlier, third), pageSize = 2))
+
+        composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(third.title))
+
+        composeRule.onNodeWithText(third.title).assertIsDisplayed()
+    }
+
     private fun setActiveShelf(
         onArchive: (Article) -> Unit,
         onMoveToTrash: (Article) -> Unit,
@@ -102,6 +116,7 @@ class NewsScreenTest {
                     now = TestNow,
                     onShelfSelect = {},
                     onRefresh = {},
+                    onLoadMore = {},
                     onArticleClick = {},
                     onArchive = onArchive,
                     onMoveToTrash = onMoveToTrash,

@@ -60,7 +60,7 @@ import dev.vvivid.newsfeed.data.Article
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.ui.component.LoadFailedMessage
 import dev.vvivid.newsfeed.ui.component.LoadingIndicator
-import dev.vvivid.newsfeed.ui.cover.FallbackCover
+import dev.vvivid.newsfeed.ui.cover.ArticleCover
 import dev.vvivid.newsfeed.ui.preview.PreviewSampleData
 import dev.vvivid.newsfeed.ui.preview.PreviewSamples
 import dev.vvivid.newsfeed.ui.theme.ArticleSummaryTextStyle
@@ -202,6 +202,14 @@ private fun messageText(
                 ArticleAction.Restore -> R.string.message_restore_failed
             }
         }
+
+        ArticleMessage.ChangedOnServer -> {
+            R.string.message_changed_on_server_article
+        }
+
+        ArticleMessage.ChangeNotAllowed -> {
+            R.string.message_change_not_allowed
+        }
     }
 
 // TopAppBar is still experimental in Material 3.
@@ -322,8 +330,8 @@ private fun ArticleContent(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            FallbackCover(
-                articleUrl = article.url,
+            ArticleCover(
+                article = article,
                 modifier =
                     Modifier
                         .padding(horizontal = 16.dp)

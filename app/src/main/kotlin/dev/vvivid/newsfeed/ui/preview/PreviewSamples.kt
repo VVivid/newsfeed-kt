@@ -27,6 +27,8 @@ internal object PreviewSamples {
 
     val serverOrigin = "https://news.example.com"
 
+    val signInHost = "auth.example.com"
+
     val activeArticles: List<Article> =
         listOf(
             article(
@@ -134,6 +136,6 @@ internal object PreviewSamples {
         createdAt = now - savedAgo,
         archivedAt = archivedAgo?.let { now - it },
         trashedAt = trashedAgo?.let { now - it },
-        hasThumbnail = false,
+        thumbnailKey = null,
     )
 }

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
 import dev.vvivid.newsfeed.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
@@ -21,7 +22,28 @@ class SettingsScreenTest {
     val composeRule = createComposeRule()
 
     private var serverChanges = 0
+    private var signOuts = 0
+    private var licenseOpenings = 0
     private val themeChoices = mutableListOf<ThemeMode>()
+
+    @Test
+    fun `the account shows where the user signed in, and Sign out reports it`() {
+        setSettings()
+
+        composeRule.onNodeWithText("via auth.example.com").assertIsDisplayed()
+        composeRule.onNodeWithText("Sign out").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, signOuts) }
+    }
+
+    @Test
+    fun `About opens the open-source licenses`() {
+        setSettings()
+
+        composeRule.onNodeWithText("Open-source licenses").performScrollTo().performClick()
+
+        composeRule.runOnIdle { assertEquals(1, licenseOpenings) }
+    }
 
     @Test
     fun `changing server asks for confirmation first`() {
@@ -58,13 +80,15 @@ class SettingsScreenTest {
             NewsfeedTheme {
                 SettingsRoute(
                     serverOrigin = "https://news.example.com",
+                    signInHost = "auth.example.com",
                     themeMode = ThemeMode.System,
                     onThemeModeChange = { themeChoices += it },
                     useDynamicColor = false,
                     onDynamicColorChange = {},
                     onBack = {},
-                    onSignOut = {},
+                    onSignOut = { signOuts++ },
                     onChangeServer = { serverChanges++ },
+                    onOpenLicenses = { licenseOpenings++ },
                 )
             }
         }

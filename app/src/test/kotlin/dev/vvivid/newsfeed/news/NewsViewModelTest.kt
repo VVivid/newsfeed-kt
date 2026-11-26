@@ -3,6 +3,7 @@ package dev.vvivid.newsfeed.news
 import dev.vvivid.newsfeed.MainDispatcherRule
 import dev.vvivid.newsfeed.data.Article
 import dev.vvivid.newsfeed.data.FakeNewsRepository
+import dev.vvivid.newsfeed.data.PermissionDeniedException
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.data.testArticle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -10,7 +11,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
@@ -212,6 +215,92 @@ class NewsViewModelTest {
 
             viewModel.messageShown(second)
             assertNull(viewModel.uiState.value.message)
+        }
+
+    @Test
+    fun `the next page loads when asked and adds to the list`() =
+        runTest {
+            val paged = FakeNewsRepository(listOf(older, newest, testArticle("oldest", savedHoursAgo = 9)), pageSize = 2)
+            val viewModel = NewsViewModel(paged)
+            advanceUntilIdle()
+            assertEquals(listOf(newest, older), viewModel.articles())
+            assertTrue((viewModel.uiState.value.content as ShelfContent.Loaded).hasMore)
+
+            viewModel.loadMore()
+            assertTrue((viewModel.uiState.value.content as ShelfContent.Loaded).isLoadingMore)
+            advanceUntilIdle()
+
+            val content = viewModel.uiState.value.content as ShelfContent.Loaded
+            assertEquals(listOf("newest", "older", "oldest"), content.articles.map { it.id })
+            assertFalse(content.hasMore)
+            assertFalse(content.isLoadingMore)
+        }
+
+    @Test
+    fun `a refresh reloads at least as many articles as are shown, so the list keeps its place`() =
+        runTest {
+            val paged = FakeNewsRepository(listOf(older, newest, testArticle("oldest", savedHoursAgo = 9)), pageSize = 2)
+            val viewModel = NewsViewModel(paged)
+            advanceUntilIdle()
+            viewModel.loadMore()
+            advanceUntilIdle()
+            paged.listedShelves.clear()
+
+            viewModel.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(Shelf.Active, Shelf.Active), paged.listedShelves)
+            assertEquals(listOf("newest", "older", "oldest"), viewModel.articles().map { it.id })
+        }
+
+    @Test
+    fun `a next page that fails to load can be tried again`() =
+        runTest {
+            val paged = FakeNewsRepository(listOf(older, newest, testArticle("oldest", savedHoursAgo = 9)), pageSize = 2)
+            val viewModel = NewsViewModel(paged)
+            advanceUntilIdle()
+            paged.failure = IOException("offline")
+
+            viewModel.loadMore()
+            advanceUntilIdle()
+            val failed = viewModel.uiState.value.content as ShelfContent.Loaded
+            assertTrue(failed.loadMoreFailed)
+            assertEquals(listOf(newest, older), failed.articles)
+
+            paged.failure = null
+            viewModel.loadMore()
+            advanceUntilIdle()
+            assertEquals(3, viewModel.articles().size)
+            assertFalse((viewModel.uiState.value.content as ShelfContent.Loaded).loadMoreFailed)
+        }
+
+    @Test
+    fun `a move refused because the article changed on the server reloads the shelf and says so`() =
+        runTest {
+            val viewModel = loadedViewModel()
+            // Archived and restored in the web reader: the app's copy has a stale revision.
+            val changed = newest.copy(revision = newest.revision + 2)
+            repository.replace(changed)
+
+            viewModel.archive(newest)
+            advanceUntilIdle()
+
+            assertEquals(NewsMessage.ChangedOnServer, viewModel.uiState.value.message)
+            assertEquals(listOf(changed, older), viewModel.articles())
+            assertEquals(Shelf.Active, repository.article("newest").shelf)
+        }
+
+    @Test
+    fun `a move the sign-in does not allow puts the article back and says so`() =
+        runTest {
+            val viewModel = loadedViewModel()
+            repository.failure = PermissionDeniedException()
+
+            viewModel.moveToTrash(newest)
+            advanceUntilIdle()
+
+            assertEquals(listOf(newest, older), viewModel.articles())
+            assertEquals(NewsMessage.ChangeNotAllowed, viewModel.uiState.value.message)
         }
 
     private fun TestScope.loadedViewModel(): NewsViewModel {

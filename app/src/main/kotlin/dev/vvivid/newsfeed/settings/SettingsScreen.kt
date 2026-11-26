@@ -59,6 +59,8 @@ import dev.vvivid.newsfeed.ui.theme.isDynamicColorAvailable
 data class SettingsUiState(
     /** The signed-in server, such as `https://news.example.com`. */
     val serverOrigin: String,
+    /** Where the user signed in, such as `auth.example.com`. */
+    val signInHost: String,
     val themeMode: ThemeMode,
     val useDynamicColor: Boolean,
     /** Whether this device has Material You colors (Android 12 and newer). */
@@ -75,6 +77,7 @@ data class SettingsUiState(
 @Composable
 fun SettingsRoute(
     serverOrigin: String,
+    signInHost: String,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     useDynamicColor: Boolean,
@@ -82,6 +85,7 @@ fun SettingsRoute(
     onBack: () -> Unit,
     onSignOut: () -> Unit,
     onChangeServer: () -> Unit,
+    onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isChangeServerDialogOpen by rememberSaveable { mutableStateOf(false) }
@@ -89,6 +93,7 @@ fun SettingsRoute(
         uiState =
             SettingsUiState(
                 serverOrigin = serverOrigin,
+                signInHost = signInHost,
                 themeMode = themeMode,
                 useDynamicColor = useDynamicColor,
                 isDynamicColorAvailable = isDynamicColorAvailable,
@@ -105,6 +110,7 @@ fun SettingsRoute(
             isChangeServerDialogOpen = false
             onChangeServer()
         },
+        onOpenLicenses = onOpenLicenses,
         modifier = modifier,
     )
 }
@@ -120,6 +126,7 @@ fun SettingsScreen(
     onChangeServerClick: () -> Unit,
     onChangeServerDismiss: () -> Unit,
     onChangeServerConfirm: () -> Unit,
+    onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val serverAddress = displayServerAddress(uiState.serverOrigin)
@@ -150,7 +157,11 @@ fun SettingsScreen(
 
             SectionHeading(R.string.settings_account)
             SettingsCard {
-                InfoRow(icon = R.drawable.ic_account, text = stringResource(R.string.settings_signed_in))
+                InfoRow(
+                    icon = R.drawable.ic_account,
+                    text = stringResource(R.string.settings_signed_in),
+                    supportingText = stringResource(R.string.settings_signed_in_via, uiState.signInHost),
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 ActionRow(
                     icon = R.drawable.ic_sign_out,
@@ -190,6 +201,13 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                ActionRow(
+                    icon = R.drawable.ic_info,
+                    text = stringResource(R.string.settings_licenses),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    onClick = onOpenLicenses,
+                )
             }
         }
     }
@@ -250,18 +268,33 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/** A fact with an optional second line. TalkBack reads both lines together. */
 @Composable
 private fun InfoRow(
     @DrawableRes icon: Int,
     text: String,
+    supportingText: String? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .semantics(mergeDescendants = true) {},
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painter = painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = text, style = MaterialTheme.typography.bodyLarge)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = text, style = MaterialTheme.typography.bodyLarge)
+            if (supportingText != null) {
+                Text(
+                    text = supportingText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
     }
 }
 
@@ -389,6 +422,7 @@ private fun SettingsScreenPreview(
             uiState =
                 SettingsUiState(
                     serverOrigin = PreviewSamples.serverOrigin,
+                    signInHost = PreviewSamples.signInHost,
                     themeMode = themeMode,
                     useDynamicColor = false,
                     isDynamicColorAvailable = isDynamicColorAvailable,
@@ -402,6 +436,7 @@ private fun SettingsScreenPreview(
             onChangeServerClick = {},
             onChangeServerDismiss = {},
             onChangeServerConfirm = {},
+            onOpenLicenses = {},
         )
     }
 }

@@ -148,6 +148,24 @@ class ArticleBodyTest {
     }
 
     @Test
+    fun `deeply nested emphasis is flattened instead of overflowing the stack`() {
+        val paragraph = parse("*".repeat(5_000) + "x" + "*".repeat(5_000)).single() as BodyBlock.Paragraph
+
+        assertTrue(paragraph.text.text.contains('x'))
+        // One range per level of emphasis, at most one level beyond the limit of 16.
+        assertTrue("${paragraph.text.ranges.size} styled ranges", paragraph.text.ranges.size in 1..17)
+    }
+
+    @Test
+    fun `links resolve against a source address without a path as against its root`() {
+        assertEquals("https://example.com/about", resolveLinkUrl("about", "https://example.com"))
+        assertEquals("https://example.com/about", resolveLinkUrl("about", "https://example.com?ref=feed"))
+        assertEquals("https://example.com/#notes", resolveLinkUrl("#notes", "https://example.com"))
+        assertEquals("https://example.com/a%20b", resolveLinkUrl("a%20b", "https://example.com?q=%20"))
+        assertEquals("https://example.com:8443/about", resolveLinkUrl("/about", "https://example.com:8443"))
+    }
+
+    @Test
     fun `relative, protocol-relative and fragment links resolve against the source`() {
         assertEquals("https://news.example.com/articles/two", resolveLinkUrl("two", source))
         assertEquals("https://news.example.com/about", resolveLinkUrl("/about", source))

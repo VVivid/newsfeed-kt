@@ -22,5 +22,5 @@ fun testArticle(
     createdAt = TestNow - Duration.ofHours(savedHoursAgo),
     archivedAt = archivedHoursAgo?.let { TestNow - Duration.ofHours(it) },
     trashedAt = trashedHoursAgo?.let { TestNow - Duration.ofHours(it) },
-    hasThumbnail = false,
+    thumbnailKey = null,
 )

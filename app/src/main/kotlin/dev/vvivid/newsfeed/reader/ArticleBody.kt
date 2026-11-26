@@ -81,10 +81,10 @@ sealed interface InlineStyle {
 /**
  * Turns an article's saved Markdown into blocks to display, following CommonMark.
  *
- * The Markdown is untrusted, so only plain text and styling come out of it. Raw HTML is dropped,
- * as in the server's web reader; text between HTML tags stays. A link keeps its destination only
- * if [resolveLinkUrl] accepts it against [sourceUrl]. Images show their alt text, because article
- * images load only through the server.
+ * The Markdown is untrusted, so only plain text and styling come out of it. Raw HTML is dropped, as
+ * in the server's web reader: an HTML block disappears whole, while inline tags disappear and the
+ * text between them stays. A link keeps its destination only if [resolveLinkUrl] accepts it against
+ * [sourceUrl]. Images show their alt text, because article images load only through the server.
  *
  * Parsing a long article takes a while: call this off the main thread.
  */
@@ -99,8 +99,19 @@ fun parseArticleBody(
  */
 private const val MAX_OPEN_BLOCKS = 16
 
+/**
+ * Links and emphasis nested deeper than this are read as text, for the same reason: converting
+ * inline content recurses once per level. Set explicitly because the library's default allows more.
+ */
+private const val MAX_INLINE_NESTING = 16
+
 /** CommonMark parsers are immutable and thread-safe, so one serves every article. */
-private val MarkdownParser: Parser = Parser.builder().maxOpenBlockParsers(MAX_OPEN_BLOCKS).build()
+private val MarkdownParser: Parser =
+    Parser
+        .builder()
+        .maxOpenBlockParsers(MAX_OPEN_BLOCKS)
+        .maxInlineNesting(MAX_INLINE_NESTING)
+        .build()
 
 /** Converts a parsed CommonMark document into [BodyBlock]s. */
 private class BodyBuilder(
@@ -126,7 +137,7 @@ private class BodyBuilder(
 
             is ThematicBreak -> BodyBlock.Rule
 
-            // Raw HTML blocks are never shown. Link reference definitions only feed links.
+            // An HTML block is dropped whole, text included. Link reference definitions only feed links.
             else -> null
         }
 
@@ -228,7 +239,7 @@ internal fun resolveLinkUrl(
     if (target.isEmpty()) return null
     val resolved =
         try {
-            URI(sourceUrl).resolve(target)
+            sourceBaseUri(sourceUrl).resolve(target)
         } catch (e: URISyntaxException) {
             return null
         } catch (e: IllegalArgumentException) {
@@ -238,4 +249,18 @@ internal fun resolveLinkUrl(
     if (scheme != "http" && scheme != "https") return null
     if (resolved.host.isNullOrEmpty()) return null
     return resolved.toString()
+}
+
+/**
+ * [sourceUrl] as a base for resolving links. An address without a path, such as
+ * `https://example.com`, gets the root path, as in a browser: java.net.URI would otherwise resolve
+ * `about` against it to `https://example.comabout`.
+ */
+private fun sourceBaseUri(sourceUrl: String): URI {
+    val source = URI(sourceUrl)
+    if (source.isOpaque || source.rawAuthority == null || !source.rawPath.isNullOrEmpty()) return source
+    // Rebuilt from the raw (still encoded) parts, so nothing is encoded twice.
+    val query = source.rawQuery?.let { "?$it" }.orEmpty()
+    val fragment = source.rawFragment?.let { "#$it" }.orEmpty()
+    return URI("${source.scheme}://${source.rawAuthority}/$query$fragment")
 }

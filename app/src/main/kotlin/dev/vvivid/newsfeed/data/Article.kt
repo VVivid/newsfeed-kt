@@ -36,10 +36,11 @@ data class Article(
     /** When it was moved to Trash (`trashed_at`). */
     val trashedAt: Instant?,
     /**
-     * Whether the server has a thumbnail for it: `thumbnail_status` is `stored` or `legacy`. The
-     * app shows generated fallback covers until it loads thumbnails.
+     * Identifies the server's thumbnail for the article, or null when it has none and the app shows
+     * a generated fallback cover. A new image gets a new key, so the key names cached images: the
+     * image's hash (`thumbnail_hash`) for a saved thumbnail, otherwise the article's revision.
      */
-    val hasThumbnail: Boolean,
+    val thumbnailKey: String?,
 ) {
     /** The site the article comes from, as the server's web reader names it. */
     val sourceHost: String = sourceHostOf(url)

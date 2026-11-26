@@ -9,9 +9,16 @@ activityCompose = "1.13.0"
 lifecycle = "2.10.0"
 # 2.9.8 is the newest release that compiles against SDK 36; 2.10 needs SDK 37 and AGP 9.1.
 navigation = "2.9.8"
-# The version Navigation already brings; declared because type-safe routes compile against it.
+# The version Navigation already brings; declared because type-safe routes compile against it. The
+# JSON format for server responses uses the same version.
 kotlinxSerialization = "1.7.3"
 commonmark = "0.33.0"
+# Sign-in through the system browser (OAuth authorization code with PKCE); 0.11.1 is the latest release.
+appauth = "0.11.1"
+# Custom Tabs for Open original and article links. 1.10.0 compiles against SDK 36 with AGP 8.9.1 or newer.
+browser = "1.10.0"
+# 5.4.0 is the newest release whose Android artifact compiles against SDK 36; 5.5 needs SDK 37.
+okhttp = "5.4.0"
 junit = "4.13.2"
 # The kotlinx-coroutines version the app resolves through Lifecycle and Compose, so tests run
 # against the same coroutines library as the app.
@@ -20,6 +27,7 @@ robolectric = "4.18.1"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
@@ -30,11 +38,16 @@ androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+appauth = { module = "net.openid:appauth", version.ref = "appauth" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 junit = { module = "junit:junit", version.ref = "junit" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver3", version.ref = "okhttp" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 [plugins]

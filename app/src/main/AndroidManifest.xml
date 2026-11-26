@@ -2,15 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- For the user's server and its identity provider, over HTTPS (see network_security_config). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!--
-        No INTERNET permission yet: this version never contacts a server. Server sign-in adds it.
-        Backups are off because sign-in state will be tied to this device's Keystore and to one
-        server: fullBackupContent covers Android 8 to 11, data_extraction_rules covers cloud backup
-        and device-to-device transfer on Android 12 and newer.
+        Backups are off because sign-in state is tied to this device's Keystore and to one server:
+        fullBackupContent covers Android 8 to 11, data_extraction_rules covers cloud backup and
+        device-to-device transfer on Android 12 and newer.
         enableOnBackInvokedCallback opts in to predictive back on Android 13 to 15; Android 16 opts in
         apps that target it. Older versions ignore the attribute, which tools:targetApi tells lint.
+        AppAuth's library manifest adds the activities that run the sign-in page and receive its
+        redirect (scheme: appAuthRedirectScheme in app/build.gradle.kts).
     -->
     <application
+        android:name=".NewsfeedApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"

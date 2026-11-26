@@ -21,6 +21,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        // The scheme of the sign-in redirect URI (NativeClient.REDIRECT_URI in auth/NativeClient.kt).
+        // AppAuth's redirect activity answers it; the identity provider must register the full URI.
+        manifestPlaceholders["appAuthRedirectScheme"] = "dev.vvivid.newsfeed"
     }
 
     buildTypes {
@@ -77,8 +81,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.savedstate)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.browser)
+    implementation(libs.appauth)
     implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
     implementation(libs.commonmark)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Declares the empty activity that Compose UI tests host their content in (debug builds only).
@@ -89,4 +98,5 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.okhttp.mockwebserver)
 }
