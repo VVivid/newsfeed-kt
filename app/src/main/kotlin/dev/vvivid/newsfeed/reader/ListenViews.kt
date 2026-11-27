@@ -4,6 +4,7 @@ import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -518,13 +519,16 @@ internal fun PlayerSheet(
                     Icon(painterResource(R.drawable.ic_skip_next), contentDescription = stringResource(R.string.audio_next_section))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Labels never wrap; with large text the row scrolls sideways instead.
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 for (speed in Speeds) {
                     FilterChip(
                         selected = speed == listen.speed,
                         onClick = { actions.onSpeed(speed) },
-                        label = { Text(speedLabel(speed)) },
-                        modifier = Modifier.weight(1f),
+                        label = { Text(speedLabel(speed), maxLines = 1, softWrap = false) },
                     )
                 }
             }
@@ -535,7 +539,12 @@ internal fun PlayerSheet(
                 ) {
                     Icon(painterResource(R.drawable.ic_waveform), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(stringResource(R.string.audio_voice_saved, audio.voice.name), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            text = audio.voice.name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
                         Text(
                             text = stringResource(R.string.audio_created_on, createdDate(audio)),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

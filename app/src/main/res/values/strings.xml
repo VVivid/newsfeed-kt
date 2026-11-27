@@ -147,8 +147,7 @@
     <string name="audio_back_15">Back 15 seconds</string>
     <string name="audio_forward_15">Forward 15 seconds</string>
     <string name="audio_now_listening">NOW LISTENING</string>
-    <string name="audio_voice_saved">%1$s · saved on your server</string>
-    <string name="audio_created_on">Created %1$s · plays offline</string>
+    <string name="audio_created_on">Saved on your server %1$s · plays offline</string>
     <string name="audio_up_next">UP NEXT</string>
     <string name="audio_sleep_timer">Sleep timer</string>
     <string name="audio_sleep_off">Turn off the sleep timer</string>
