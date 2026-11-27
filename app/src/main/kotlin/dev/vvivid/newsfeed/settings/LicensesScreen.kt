@@ -66,6 +66,7 @@ internal val ThirdPartyNotices: List<ThirdPartyNotice> =
         ),
         ThirdPartyNotice(name = "commonmark-java", copyright = "Atlassian Pty Ltd", license = License.CommonmarkBsd2),
         ThirdPartyNotice(name = "Source Serif 4", copyright = "Adobe", license = License.SourceSerifOfl),
+        ThirdPartyNotice(name = "Mermaid (draws article diagrams)", copyright = "Knut Sveidqvist", license = License.MermaidMit),
     )
 
 /** One component and the license it is used under. */
@@ -83,6 +84,7 @@ internal enum class License(
     Apache2("Apache License 2.0", "licenses/Apache-2.0.txt"),
     CommonmarkBsd2("BSD 2-Clause License (commonmark-java)", "licenses/commonmark-java-BSD-2-Clause.txt"),
     SourceSerifOfl("SIL Open Font License 1.1 (Source Serif 4)", "licenses/SourceSerif4-OFL.txt"),
+    MermaidMit("MIT License (Mermaid)", "licenses/mermaid-MIT.txt"),
 }
 
 /** The notices and license texts. The texts are read from the app's assets, off the main thread. */

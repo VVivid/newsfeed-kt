@@ -81,6 +81,11 @@ Deleting it in a later commit does not remove it from history.
 - Article titles, summaries, Markdown and URLs from the server are untrusted
   data. Render Markdown without raw HTML or script execution; open links in a
   Custom Tab, never in a WebView with JavaScript bridges.
+- Exception agreed with the owner (2026-11-27): ```` ```mermaid ```` blocks are drawn by
+  Mermaid in `reader/DiagramView.kt`, in a WebView that runs only the bundled
+  `assets/mermaid/` scripts, blocks network loads, has no JavaScript bridge, no
+  navigation and no file or content access, and passes the diagram source only as
+  HTML-escaped text. Keep those properties; do not reuse that WebView for anything else.
 - Changing the server signs out and clears all cached data from the previous
   server.
 - Keep the design from the agreed mockups: Material 3 with the newsprint theme,

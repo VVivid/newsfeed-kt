@@ -78,6 +78,10 @@ internal fun BodyBlockView(
             CodeBlockView(block.code, modifier)
         }
 
+        is BodyBlock.Diagram -> {
+            DiagramView(block.source, modifier)
+        }
+
         BodyBlock.Rule -> {
             HorizontalDivider(modifier = modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -140,7 +144,7 @@ private fun ListBlockView(
 
 /** Preformatted text keeps its lines; long ones scroll sideways instead of wrapping. */
 @Composable
-private fun CodeBlockView(
+internal fun CodeBlockView(
     code: String,
     modifier: Modifier = Modifier,
 ) {

@@ -15,3 +15,6 @@
 
 # Third-party license texts are kept byte-for-byte as published, trailing spaces included.
 app/src/main/assets/licenses/*.txt whitespace=-trailing-space
+
+# Mermaid ships as its published minified bundle (see app/src/main/assets/mermaid/README.md).
+app/src/main/assets/mermaid/mermaid.min.js -text -diff linguist-vendored

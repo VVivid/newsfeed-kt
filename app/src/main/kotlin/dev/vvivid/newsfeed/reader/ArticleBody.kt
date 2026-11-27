@@ -43,6 +43,11 @@ sealed interface BodyBlock {
         val items: List<List<BodyBlock>>,
     ) : BodyBlock
 
+    /** A ```mermaid block: a diagram that Mermaid draws from [source]. */
+    data class Diagram(
+        val source: String,
+    ) : BodyBlock
+
     /** Preformatted text, shown in a monospace font without wrapping. */
     data class CodeBlock(
         val code: String,
@@ -131,7 +136,7 @@ private class BodyBuilder(
 
             is OrderedList -> listBlock(node, firstNumber = node.markerStartNumber ?: 1)
 
-            is FencedCodeBlock -> codeBlock(node.literal)
+            is FencedCodeBlock -> if (node.isMermaid()) diagram(node.literal) else codeBlock(node.literal)
 
             is IndentedCodeBlock -> codeBlock(node.literal)
 
@@ -146,6 +151,8 @@ private class BodyBuilder(
         list: Node,
         firstNumber: Int?,
     ): BodyBlock = BodyBlock.ListBlock(firstNumber, items = list.children().map(::blocks).toList())
+
+    private fun diagram(literal: String?): BodyBlock? = literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.Diagram(it) }
 
     private fun codeBlock(literal: String?): BodyBlock? =
         literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.CodeBlock(it) }
@@ -264,3 +271,6 @@ private fun sourceBaseUri(sourceUrl: String): URI {
     val fragment = source.rawFragment?.let { "#$it" }.orEmpty()
     return URI("${source.scheme}://${source.rawAuthority}/$query$fragment")
 }
+
+/** A fenced block whose info string names Mermaid, such as ```mermaid. */
+private fun FencedCodeBlock.isMermaid(): Boolean = info?.trim()?.substringBefore(' ')?.equals("mermaid", ignoreCase = true) == true
