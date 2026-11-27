@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.gfm.tables)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Declares the empty activity that Compose UI tests host their content in (debug builds only).
     debugImplementation(libs.androidx.compose.ui.test.manifest)

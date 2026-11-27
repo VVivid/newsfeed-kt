@@ -111,6 +111,8 @@
     <string name="article_diagram_close">Close diagram</string>
     <string name="article_diagram_tap_hint">Tap to zoom</string>
     <string name="article_diagram_zoom_hint">Pinch or double-tap to zoom</string>
+    <string name="article_contents">Contents</string>
+    <string name="article_contents_open">Show contents</string>
     <string name="article_no_saved_body">The full article is not saved here. Open the original to read it.</string>
 
     <string name="settings_title">Settings</string>

@@ -1,5 +1,10 @@
 package dev.vvivid.newsfeed.reader
 
+import org.commonmark.ext.gfm.tables.TableBlock
+import org.commonmark.ext.gfm.tables.TableCell
+import org.commonmark.ext.gfm.tables.TableHead
+import org.commonmark.ext.gfm.tables.TableRow
+import org.commonmark.ext.gfm.tables.TablesExtension
 import org.commonmark.node.BlockQuote
 import org.commonmark.node.BulletList
 import org.commonmark.node.Code
@@ -53,9 +58,22 @@ sealed interface BodyBlock {
         val code: String,
     ) : BodyBlock
 
+    /**
+     * A table: a [header] row and body [rows]. Every row has one cell per column, and [alignments]
+     * has one entry per column.
+     */
+    data class Table(
+        val alignments: List<CellAlignment>,
+        val header: List<BodyText>,
+        val rows: List<List<BodyText>>,
+    ) : BodyBlock
+
     /** A horizontal rule between sections. */
     data object Rule : BodyBlock
 }
+
+/** How a table column lines up its cells, as the Markdown's delimiter row says. */
+enum class CellAlignment { Start, Center, End }
 
 /** A block's text, with the [ranges] that are styled or linked. */
 data class BodyText(
@@ -116,6 +134,8 @@ private val MarkdownParser: Parser =
         .builder()
         .maxOpenBlockParsers(MAX_OPEN_BLOCKS)
         .maxInlineNesting(MAX_INLINE_NESTING)
+        // Agents write tables in the GitHub style, as the server's web reader shows them.
+        .extensions(listOf(TablesExtension.create()))
         .build()
 
 /** Converts a parsed CommonMark document into [BodyBlock]s. */
@@ -142,6 +162,8 @@ private class BodyBuilder(
 
             is ThematicBreak -> BodyBlock.Rule
 
+            is TableBlock -> table(node)
+
             // An HTML block is dropped whole, text included. Link reference definitions only feed links.
             else -> null
         }
@@ -159,6 +181,44 @@ private class BodyBuilder(
 
     /** The inline content of [block], or null if nothing visible is left. */
     private fun text(block: Node): BodyText? = InlineTextBuilder(sourceUrl).apply { appendChildren(block) }.build()
+
+    /** A table whose rows all have as many cells as its header, so its columns line up. */
+    private fun table(table: TableBlock): BodyBlock? {
+        val rows =
+            table
+                .children()
+                .flatMap { section -> section.children().filterIsInstance<TableRow>().map { row -> section to row } }
+                .toList()
+        val headerRow = rows.firstOrNull { (section, _) -> section is TableHead }?.second ?: return null
+        val headerCells = headerRow.children().filterIsInstance<TableCell>().toList()
+        val columns = headerCells.size
+        if (columns == 0) return null
+        val alignments =
+            headerCells.map {
+                when (it.alignment) {
+                    TableCell.Alignment.CENTER -> CellAlignment.Center
+                    TableCell.Alignment.RIGHT -> CellAlignment.End
+                    else -> CellAlignment.Start
+                }
+            }
+        val body = rows.filter { (section, _) -> section !is TableHead }.map { (_, row) -> cells(row, columns) }
+        return BodyBlock.Table(alignments, cells(headerRow, columns), body)
+    }
+
+    /** [row]'s first [columns] cells, padded with empty ones if it has fewer. */
+    private fun cells(
+        row: TableRow,
+        columns: Int,
+    ): List<BodyText> {
+        val cells =
+            row
+                .children()
+                .filterIsInstance<TableCell>()
+                .take(columns)
+                .map { InlineTextBuilder(sourceUrl).apply { appendChildren(it) }.build() ?: BodyText("") }
+                .toList()
+        return cells + List(columns - cells.size) { BodyText("") }
+    }
 }
 
 /** Flattens a block's inline nodes into one string and the ranges styled within it. */

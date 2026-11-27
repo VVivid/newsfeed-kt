@@ -56,7 +56,8 @@ internal fun BodyBlockView(
         is BodyBlock.Heading -> {
             Text(
                 text = rememberBodyText(block.text, onLinkClick),
-                modifier = modifier.semantics { heading() },
+                // Extra room above a section heading sets the sections apart.
+                modifier = modifier.padding(top = if (block.level <= 2) 18.dp else 8.dp).semantics { heading() },
                 color = MaterialTheme.colorScheme.tertiary,
                 style = headingStyle(block.level),
             )
@@ -80,6 +81,10 @@ internal fun BodyBlockView(
 
         is BodyBlock.Diagram -> {
             DiagramView(block.source, modifier)
+        }
+
+        is BodyBlock.Table -> {
+            TableView(block, onLinkClick, modifier)
         }
 
         BodyBlock.Rule -> {
@@ -164,7 +169,7 @@ internal fun CodeBlockView(
 
 /** [text] with its styles applied. Its links call [onLinkClick] instead of opening anything. */
 @Composable
-private fun rememberBodyText(
+internal fun rememberBodyText(
     text: BodyText,
     onLinkClick: (url: String) -> Unit,
 ): AnnotatedString {

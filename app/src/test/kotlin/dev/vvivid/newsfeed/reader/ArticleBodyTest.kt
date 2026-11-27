@@ -185,4 +185,42 @@ class ArticleBodyTest {
         assertNull(resolveLinkUrl("https:no-host", source))
         assertNull(resolveLinkUrl("https://news .example.org/", source))
     }
+
+    @Test
+    fun `a table keeps its header, rows, alignment and inline styles`() {
+        val blocks =
+            parse(
+                """
+                | Method | Route | Code |
+                |:---|:---:|---:|
+                | POST | `/invoices` | 201 |
+                | GET | **list** |
+                """.trimIndent(),
+            )
+
+        assertEquals(
+            listOf(
+                BodyBlock.Table(
+                    alignments = listOf(CellAlignment.Start, CellAlignment.Center, CellAlignment.End),
+                    header = listOf(BodyText("Method"), BodyText("Route"), BodyText("Code")),
+                    rows =
+                        listOf(
+                            listOf(
+                                BodyText("POST"),
+                                BodyText("/invoices", listOf(StyledRange(InlineStyle.Code, 0, 9))),
+                                BodyText("201"),
+                            ),
+                            // A short row is padded so its columns line up.
+                            listOf(BodyText("GET"), BodyText("list", listOf(StyledRange(InlineStyle.Strong, 0, 4))), BodyText("")),
+                        ),
+                ),
+            ),
+            blocks,
+        )
+    }
+
+    @Test
+    fun `pipes without a delimiter row stay a paragraph`() {
+        assertEquals(listOf(paragraph("| a | b |")), parse("| a | b |"))
+    }
 }

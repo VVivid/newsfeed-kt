@@ -5,6 +5,7 @@ import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ButtonDefaults
@@ -28,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -36,11 +40,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +61,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -65,6 +76,7 @@ import dev.vvivid.newsfeed.ui.preview.PreviewSampleData
 import dev.vvivid.newsfeed.ui.preview.PreviewSamples
 import dev.vvivid.newsfeed.ui.theme.ArticleSummaryTextStyle
 import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
+import kotlinx.coroutines.launch
 
 /**
  * The article reader. [onOpenOriginal] and [onOpenLink] receive the address to open; this screen
@@ -122,9 +134,36 @@ fun ArticleScreen(
     if (loaded?.message != null) {
         MessageSnackbar(loaded.message, loaded.article.shelf, snackbarHostState, onMessageShown)
     }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val title = loaded?.article?.title.orEmpty()
+    val body = remember(loaded?.body, title) { readerBody(loaded?.body.orEmpty(), title) }
+    val sections = remember(body) { sections(body) }
+    val currentSection by remember(sections) {
+        derivedStateOf {
+            // Offsets count from below the top bar; items scrolled under it have negative offsets.
+            val topItem =
+                listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.offset + it.size > 0 }
+                    ?.index ?: listState.firstVisibleItemIndex
+            sections.lastOrNull { it.itemIndex <= topItem }
+        }
+    }
+    var showContents by rememberSaveable { mutableStateOf(false) }
+    // A short article has nothing to jump between.
+    val onShowContents = if (sections.size >= 2) ({ showContents = true }) else null
+    if (showContents && onShowContents != null) {
+        ContentsSheet(
+            title = title,
+            sections = sections,
+            current = currentSection,
+            onSelect = { itemIndex -> scope.launch { listState.scrollToItem(itemIndex) } },
+            onDismiss = { showContents = false },
+        )
+    }
     Scaffold(
         modifier = modifier,
-        topBar = { ArticleTopBar(onBack) },
+        topBar = { ArticleTopBar(onBack, sectionTitle = currentSection?.title, onShowContents = onShowContents) },
         bottomBar = {
             if (loaded != null) ArticleBottomBar(loaded, onAction, onShare, onOpenOriginal)
         },
@@ -147,7 +186,7 @@ fun ArticleScreen(
             }
 
             is ArticleUiState.Loaded -> {
-                ArticleContent(uiState.article, uiState.body, innerPadding, onOpenOriginal, onOpenLink)
+                ArticleContent(uiState.article, body, listState, innerPadding, onOpenOriginal, onOpenLink)
             }
         }
     }
@@ -213,12 +252,41 @@ private fun messageText(
         }
     }
 
-// TopAppBar is still experimental in Material 3.
+/**
+ * The back button and, once the reader is inside the body, the section being read. With
+ * [onShowContents], the section name and a Contents button open the list of sections.
+ *
+ * TopAppBar is still experimental in Material 3.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleTopBar(onBack: () -> Unit) {
+private fun ArticleTopBar(
+    onBack: () -> Unit,
+    sectionTitle: String?,
+    onShowContents: (() -> Unit)?,
+) {
     TopAppBar(
-        title = {},
+        title = {
+            if (sectionTitle != null) {
+                Text(
+                    text = sectionTitle,
+                    modifier = if (onShowContents != null) Modifier.clickable(onClick = onShowContents) else Modifier,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        },
+        actions = {
+            if (onShowContents != null) {
+                IconButton(onClick = onShowContents) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_toc),
+                        contentDescription = stringResource(R.string.article_contents_open),
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(
@@ -314,10 +382,127 @@ private val ArticleAction.iconRes: Int
             ArticleAction.Restore -> R.drawable.ic_restore
         }
 
+/** A heading in the reader's body, with the index of its item in the reader's list. */
+internal data class Section(
+    val title: String,
+    val level: Int,
+    val itemIndex: Int,
+)
+
+/** The reader's list shows the cover and the header before the body. */
+private const val ITEMS_BEFORE_BODY = 2
+
+/** Headings deeper than this are too fine-grained for the list of sections. */
+private const val MAX_SECTION_LEVEL = 3
+
+/** [body] without a first heading that only repeats the [title] the header already shows. */
+internal fun readerBody(
+    body: List<BodyBlock>,
+    title: String,
+): List<BodyBlock> {
+    val first = body.firstOrNull() as? BodyBlock.Heading ?: return body
+    val repeatsTitle =
+        first.level == 1 &&
+            first.text.text
+                .trim()
+                .equals(title.trim(), ignoreCase = true)
+    return if (repeatsTitle) body.drop(1) else body
+}
+
+/** The headings of [body] that the list of sections offers. */
+internal fun sections(body: List<BodyBlock>): List<Section> =
+    body.mapIndexedNotNull { index, block ->
+        (block as? BodyBlock.Heading)?.takeIf { it.level <= MAX_SECTION_LEVEL }?.let {
+            Section(
+                title =
+                    it.text.text
+                        .replace('\n', ' ')
+                        .trim(),
+                level = it.level,
+                itemIndex = ITEMS_BEFORE_BODY + index,
+            )
+        }
+    }
+
+/**
+ * The article's sections; choosing one calls [onSelect] with its list item and closes the sheet.
+ * ModalBottomSheet is still experimental in Material 3.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContentsSheet(
+    title: String,
+    sections: List<Section>,
+    current: Section?,
+    onSelect: (itemIndex: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Fully open, so the highlighted section is on screen rather than below a half-open sheet.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val topLevel = sections.minOf { it.level }
+    val choose = { itemIndex: Int ->
+        onSelect(itemIndex)
+        scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+        Unit
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Text(
+            text = stringResource(R.string.article_contents),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp).semantics { heading() },
+            style = MaterialTheme.typography.titleLarge,
+        )
+        // Opens on the section being read, with a couple of rows of context above it.
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, sections.indexOf(current) + 1 - 2))
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+            item {
+                ContentsRow(text = title, depth = 0, selected = current == null, onClick = { choose(0) })
+            }
+            items(sections) { section ->
+                ContentsRow(
+                    text = section.title,
+                    depth = section.level - topLevel,
+                    selected = section == current,
+                    onClick = { choose(section.itemIndex) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContentsRow(
+    text: String,
+    depth: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val style = if (depth == 0) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge
+    Text(
+        text = text,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 24.dp + 20.dp * depth, end = 24.dp, top = 12.dp, bottom = 12.dp),
+        color =
+            when {
+                selected -> MaterialTheme.colorScheme.primary
+                depth == 0 -> MaterialTheme.colorScheme.onSurface
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        fontWeight = if (selected) FontWeight.Bold else null,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        style = style,
+    )
+}
+
 @Composable
 private fun ArticleContent(
     article: Article,
     body: List<BodyBlock>,
+    listState: LazyListState,
     innerPadding: PaddingValues,
     onOpenOriginal: (url: String) -> Unit,
     onOpenLink: (url: String) -> Unit,
@@ -325,6 +510,7 @@ private fun ArticleContent(
     val layoutDirection = LocalLayoutDirection.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        state = listState,
         contentPadding =
             PaddingValues(
                 start = innerPadding.calculateStartPadding(layoutDirection),
