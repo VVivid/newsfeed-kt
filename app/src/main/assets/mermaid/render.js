@@ -1,31 +1,46 @@
-// Draws the Mermaid source in #source and reports the result through
-// document.title, the only channel back to the app (there is no JavaScript
-// bridge): "size:<width>x<height>" in CSS px after drawing, or "error" when Mermaid cannot read it.
+// Draws the Mermaid source in #source into a PNG for the app. There is no
+// JavaScript bridge: the page reports through document.title ("ready:<width>x<height>"
+// in CSS px, or "error") and the app then reads window.diagramPng, a PNG data URL,
+// with evaluateJavascript.
 (async () => {
   const source = document.getElementById('source').textContent
   try {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
+      // Sketchy shapes, but labels in the system's readable sans-serif font.
       look: 'handDrawn',
       theme: 'neutral',
       htmlLabels: false,
       flowchart: { htmlLabels: false },
-      fontFamily: '"Comic Sans MS", "Segoe Print", "Bradley Hand", cursive',
+      fontFamily: 'Roboto, "Noto Sans", sans-serif',
     })
     const { svg } = await mermaid.render('diagram', source)
-    const container = document.getElementById('diagram-container')
-    container.innerHTML = svg
-    const drawn = container.querySelector('svg')
-    // Natural size; a diagram wider than the screen scrolls sideways.
-    const viewBox = drawn.viewBox.baseVal
-    if (viewBox && viewBox.width > 0) {
-      drawn.setAttribute('width', Math.ceil(viewBox.width))
-      drawn.setAttribute('height', Math.ceil(viewBox.height))
-      drawn.style.maxWidth = 'none'
-    }
-    const box = container.getBoundingClientRect()
-    document.title = 'size:' + Math.ceil(box.width) + 'x' + Math.ceil(box.height)
+    const viewBox = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(svg)
+    const width = Math.ceil(Number(viewBox?.[1]))
+    const height = Math.ceil(Number(viewBox?.[2]))
+    if (!(width > 0 && height > 0)) throw new Error('no size')
+
+    // Sharp enough to zoom in on, within a bounded number of pixels.
+    const scale = Math.min(4, Math.sqrt(6e6 / (width * height)))
+    const image = new Image()
+    const sized = svg.replace(/<svg([^>]*?)\swidth="[^"]*"/, '<svg$1').replace('<svg', `<svg width="${width}" height="${height}"`)
+    // A data: URL: Android's WebView never finishes loading a blob: image here.
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sized)
+    await new Promise((resolve, reject) => {
+      image.onload = resolve
+      image.onerror = reject
+      image.src = url
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(width * scale)
+    canvas.height = Math.round(height * scale)
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    window.diagramPng = canvas.toDataURL('image/png')
+    document.title = 'ready:' + width + 'x' + height
   } catch (e) {
     document.title = 'error'
   }

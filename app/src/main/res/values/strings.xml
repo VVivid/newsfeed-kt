@@ -107,6 +107,10 @@
     <!-- %1$s is the date the article was saved, such as Nov 25, 2026. -->
     <string name="article_saved_on">Saved %1$s</string>
     <string name="article_diagram">Diagram</string>
+    <string name="article_diagram_open">Open diagram full screen</string>
+    <string name="article_diagram_close">Close diagram</string>
+    <string name="article_diagram_tap_hint">Tap to zoom</string>
+    <string name="article_diagram_zoom_hint">Pinch or double-tap to zoom</string>
     <string name="article_no_saved_body">The full article is not saved here. Open the original to read it.</string>
 
     <string name="settings_title">Settings</string>
