@@ -64,7 +64,11 @@ internal val ThirdPartyNotices: List<ThirdPartyNotice> =
             copyright = "JetBrains s.r.o., the JSpecify Authors and the Guava Authors",
             license = License.Apache2,
         ),
-        ThirdPartyNotice(name = "commonmark-java and its GFM tables extension", copyright = "Atlassian Pty Ltd", license = License.CommonmarkBsd2),
+        ThirdPartyNotice(
+            name = "commonmark-java and its GFM tables extension",
+            copyright = "Atlassian Pty Ltd",
+            license = License.CommonmarkBsd2,
+        ),
         ThirdPartyNotice(name = "Source Serif 4", copyright = "Adobe", license = License.SourceSerifOfl),
         ThirdPartyNotice(name = "Mermaid (draws article diagrams)", copyright = "Knut Sveidqvist", license = License.MermaidMit),
     )
