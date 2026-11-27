@@ -78,6 +78,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.vvivid.newsfeed.R
 import dev.vvivid.newsfeed.data.Article
+import dev.vvivid.newsfeed.data.GENERATED_TAG
+import dev.vvivid.newsfeed.data.SHOWN_TAGS
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.ui.component.LoadFailedMessage
 import dev.vvivid.newsfeed.ui.component.LoadingIndicator
@@ -313,10 +315,7 @@ private fun ShelfSelector(
     }
 }
 
-/**
- * The tag filter: "All", then every tag in use on the shelf with its count. Selecting several tags
- * shows articles having any of them.
- */
+/** The tag filter: All, Explore or Generated, with how many of the shelf's articles each has. */
 @Composable
 private fun TagFilterRow(
     uiState: NewsUiState,
@@ -326,30 +325,36 @@ private fun TagFilterRow(
 ) {
     val counts = remember(uiState.tags) { uiState.tags.associate { it.tag to it.count } }
     val description = stringResource(R.string.news_tag_filter_description)
-    LazyRow(
-        modifier = modifier.fillMaxWidth().semantics { contentDescription = description },
-        contentPadding = PaddingValues(horizontal = 16.dp),
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .semantics(mergeDescendants = false) { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item(key = "all") {
-            FilterChip(
-                selected = uiState.selectedTags.isEmpty(),
-                onClick = onClearTags,
-                label = { Text(stringResource(R.string.news_tag_filter_all)) },
-            )
-        }
-        items(uiState.filterTags, key = { "tag:$it" }) { tag ->
+        FilterChip(
+            selected = uiState.selectedTags.isEmpty(),
+            onClick = onClearTags,
+            label = { Text(stringResource(R.string.news_tag_filter_all)) },
+        )
+        for (tag in uiState.filterTags) {
             val count = counts[tag]
             FilterChip(
                 selected = tag in uiState.selectedTags,
                 onClick = { onTagToggle(tag) },
                 label = {
-                    Text(if (count == null) tag else stringResource(R.string.news_tag_filter_label, tag, count))
+                    val name = stringResource(tag.tagNameRes)
+                    Text(if (count == null) name else stringResource(R.string.news_tag_filter_label, name, count))
                 },
             )
         }
     }
 }
+
+@get:StringRes
+private val String.tagNameRes: Int
+    get() = if (this == GENERATED_TAG) R.string.news_tag_generated else R.string.news_tag_explore
 
 @get:StringRes
 private val Shelf.labelRes: Int
@@ -686,12 +691,13 @@ private fun CompactArticleCard(
     }
 }
 
-/** The article's tags as one line, such as "#generated #system-design"; nothing without tags. */
+/** The article's shown tags as one line, such as "#explore"; nothing without one. */
 @Composable
 private fun ArticleTags(article: Article) {
-    if (article.tags.isEmpty()) return
+    val tags = article.tags.filter(SHOWN_TAGS::contains)
+    if (tags.isEmpty()) return
     Text(
-        text = article.tags.joinToString(" ") { "#$it" },
+        text = tags.joinToString(" ") { "#$it" },
         color = MaterialTheme.colorScheme.primary,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

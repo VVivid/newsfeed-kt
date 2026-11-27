@@ -6,6 +6,7 @@ import dev.vvivid.newsfeed.data.Article
 import dev.vvivid.newsfeed.data.ArticlePage
 import dev.vvivid.newsfeed.data.NewsRepository
 import dev.vvivid.newsfeed.data.PermissionDeniedException
+import dev.vvivid.newsfeed.data.SHOWN_TAGS
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.data.ShelfOrder
 import dev.vvivid.newsfeed.data.TagCount
@@ -29,13 +30,13 @@ data class NewsUiState(
     val tags: List<TagCount> = emptyList(),
     /**
      * The tag filter: when not empty, the shelf shows only articles having at least one of these
-     * tags. It stays when the user switches shelves.
+     * tags. It holds at most one tag and stays when the user switches shelves.
      */
     val selectedTags: Set<String> = emptySet(),
 ) {
-    /** The tags to offer as filters: those in use, then selected ones the shelf no longer has. */
+    /** The tags offered as filters: always Explore and Generated, whatever other tags are in use. */
     val filterTags: List<String>
-        get() = tags.map { it.tag }.let { inUse -> inUse + selectedTags.filterNot(inUse::contains).sorted() }
+        get() = SHOWN_TAGS
 }
 
 /** The articles of the selected shelf. */
@@ -147,10 +148,13 @@ class NewsViewModel(
         load(shelf)
     }
 
-    /** Adds [tag] to the filter, or takes it out if it is in already, and reloads the shelf. */
+    /**
+     * Filters the shelf by [tag] alone, or shows the whole shelf again if [tag] is the filter
+     * already, and reloads the shelf.
+     */
     fun toggleTag(tag: String) {
         _uiState.update { state ->
-            val selected = if (tag in state.selectedTags) state.selectedTags - tag else state.selectedTags + tag
+            val selected = if (tag in state.selectedTags) emptySet() else setOf(tag)
             state.copy(selectedTags = selected, content = ShelfContent.Loading)
         }
         load(_uiState.value.shelf)

@@ -41,7 +41,7 @@ class NewsViewModelTest {
         }
 
     @Test
-    fun `selecting tags shows articles having any of them, and All shows the whole shelf`() =
+    fun `the filter offers only Explore and Generated, one at a time, and All shows the whole shelf`() =
         runTest {
             val explore = testArticle("explore", savedHoursAgo = 1, tags = listOf("explore", "go"))
             val generated = testArticle("generated", savedHoursAgo = 2, tags = listOf("generated", "leetcode"), url = null)
@@ -49,16 +49,25 @@ class NewsViewModelTest {
             val tagged = FakeNewsRepository(listOf(explore, generated, plain))
             val viewModel = NewsViewModel(tagged)
             advanceUntilIdle()
-            assertEquals(listOf("explore", "generated", "go", "leetcode"), viewModel.uiState.value.filterTags)
+            assertEquals(listOf("explore", "generated"), viewModel.uiState.value.filterTags)
 
-            viewModel.toggleTag("leetcode")
+            viewModel.toggleTag("generated")
             advanceUntilIdle()
             assertEquals(ShelfContent.Loaded(listOf(generated)), viewModel.uiState.value.content)
 
-            viewModel.toggleTag("go")
+            // Choosing the other tag replaces the filter instead of adding to it.
+            viewModel.toggleTag("explore")
             advanceUntilIdle()
-            assertEquals(setOf("go", "leetcode"), tagged.listedTags.last())
-            assertEquals(ShelfContent.Loaded(listOf(explore, generated)), viewModel.uiState.value.content)
+            assertEquals(setOf("explore"), tagged.listedTags.last())
+            assertEquals(ShelfContent.Loaded(listOf(explore)), viewModel.uiState.value.content)
+
+            // Choosing the selected tag again shows the whole shelf.
+            viewModel.toggleTag("explore")
+            advanceUntilIdle()
+            assertEquals(emptySet<String>(), viewModel.uiState.value.selectedTags)
+
+            viewModel.toggleTag("generated")
+            advanceUntilIdle()
 
             viewModel.clearTags()
             advanceUntilIdle()

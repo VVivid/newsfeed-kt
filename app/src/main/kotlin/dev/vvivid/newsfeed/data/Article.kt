@@ -78,6 +78,15 @@ val ShelfOrder: Comparator<Article> =
 /** The tag agents put on articles they wrote themselves. */
 const val GENERATED_TAG = "generated"
 
+/** The tag agents put on articles they found on the internet. */
+const val EXPLORE_TAG = "explore"
+
+/**
+ * The only tags the app shows and filters by. Articles keep their other tags on the server, but
+ * the app does not show them.
+ */
+val SHOWN_TAGS = listOf(EXPLORE_TAG, GENERATED_TAG)
+
 /** A tag in use on a shelf and how many of the shelf's articles have it. */
 data class TagCount(
     val tag: String,
