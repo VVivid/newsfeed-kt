@@ -1,5 +1,8 @@
 package dev.vvivid.newsfeed.auth
 
+import dev.vvivid.newsfeed.audio.AudioDirs
+import dev.vvivid.newsfeed.audio.AudioRepository
+import dev.vvivid.newsfeed.audio.ServerAudioRepository
 import dev.vvivid.newsfeed.data.NewsRepository
 import dev.vvivid.newsfeed.data.ServerNewsRepository
 import dev.vvivid.newsfeed.data.ThumbnailLoader
@@ -42,11 +45,13 @@ sealed interface SessionState {
  *
  * @property thumbnails loads the server's article thumbnails; null shows fallback covers only, as in
  *   tests and previews.
+ * @property audio the server's article audio; null leaves audio out, as in tests and previews.
  */
 class SignedInSession(
     val server: ServerConfiguration,
     val newsRepository: NewsRepository,
     val thumbnails: ThumbnailLoader? = null,
+    val audio: AudioRepository? = null,
 )
 
 /**
@@ -58,6 +63,8 @@ class SignedInSession(
  * instead of reaching the server with an old token.
  *
  * @param appScope outlives the screens, so that signing out finishes after Settings has closed.
+ * @param audioDirs where sessions keep downloaded article audio; null leaves audio out, as in tests.
+ *   A session's downloads are deleted when it ends, like the rest of its cached data.
  */
 class SessionManager(
     private val store: SessionStore,
@@ -66,6 +73,7 @@ class SessionManager(
     private val clock: Clock,
     private val appScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val audioDirs: AudioDirs? = null,
 ) {
     private val _state = MutableStateFlow<SessionState>(SessionState.Restoring)
     val state: StateFlow<SessionState> = _state.asStateFlow()
@@ -211,11 +219,16 @@ class SessionManager(
 
         private val thumbnails = ThumbnailLoader(apiClient, server.origin, ioDispatcher)
 
-        val session = SignedInSession(server, ServerNewsRepository(apiClient, server.origin, ioDispatcher), thumbnails)
+        private val audio =
+            audioDirs?.let { dirs -> ServerAudioRepository(apiClient, server.origin, dirs.storage, dirs.cache, ioDispatcher) }
+
+        val session = SignedInSession(server, ServerNewsRepository(apiClient, server.origin, ioDispatcher), thumbnails, audio)
 
         /** Stops using the tokens and drops cached images. Returns the refresh token, for revoking. */
         fun close(): String? {
             thumbnails.clear()
+            // Called holding a lock, so the files go away in the background.
+            audioDirs?.let { dirs -> appScope.launch(ioDispatcher) { dirs.deleteAll() } }
             return tokens.close()
         }
     }

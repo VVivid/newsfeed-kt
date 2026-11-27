@@ -44,18 +44,19 @@ private val NestedBlockSpacing = 8.dp
 
 /**
  * One block of an article body. Links call [onLinkClick] with their address and open nothing by
- * themselves.
+ * themselves. [spokenSentence] marks the sentence the voice is reading in a heading or paragraph.
  */
 @Composable
 internal fun BodyBlockView(
     block: BodyBlock,
     onLinkClick: (url: String) -> Unit,
     modifier: Modifier = Modifier,
+    spokenSentence: IntRange? = null,
 ) {
     when (block) {
         is BodyBlock.Heading -> {
             Text(
-                text = rememberBodyText(block.text, onLinkClick),
+                text = rememberBodyText(block.text, onLinkClick, spokenSentence),
                 // Extra room above a section heading sets the sections apart.
                 modifier = modifier.padding(top = if (block.level <= 2) 18.dp else 8.dp).semantics { heading() },
                 color = MaterialTheme.colorScheme.tertiary,
@@ -64,7 +65,7 @@ internal fun BodyBlockView(
         }
 
         is BodyBlock.Paragraph -> {
-            Text(text = rememberBodyText(block.text, onLinkClick), modifier = modifier, style = ArticleBodyTextStyle)
+            Text(text = rememberBodyText(block.text, onLinkClick, spokenSentence), modifier = modifier, style = ArticleBodyTextStyle)
         }
 
         is BodyBlock.Quote -> {
@@ -167,16 +168,22 @@ internal fun CodeBlockView(
     }
 }
 
-/** [text] with its styles applied. Its links call [onLinkClick] instead of opening anything. */
+/**
+ * [text] with its styles applied. Its links call [onLinkClick] instead of opening anything.
+ * [spoken], a range of the text, is marked as the sentence being read aloud.
+ */
 @Composable
 internal fun rememberBodyText(
     text: BodyText,
     onLinkClick: (url: String) -> Unit,
+    spoken: IntRange? = null,
 ): AnnotatedString {
     val linkColor = MaterialTheme.colorScheme.primary
     val codeBackground = MaterialTheme.colorScheme.surfaceContainer
+    val spokenBackground = MaterialTheme.colorScheme.primaryContainer
+    val spokenColor = MaterialTheme.colorScheme.onPrimaryContainer
     val currentOnLinkClick by rememberUpdatedState(onLinkClick)
-    return remember(text, linkColor, codeBackground) {
+    return remember(text, linkColor, codeBackground, spoken, spokenBackground, spokenColor) {
         val linkStyles = TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline))
         buildAnnotatedString {
             append(text.text)
@@ -201,6 +208,10 @@ internal fun rememberBodyText(
                         addLink(link, range.start, range.end)
                     }
                 }
+            }
+            val sentence = spoken?.let { it.first.coerceIn(0, text.text.length)..it.last.coerceIn(0, text.text.length - 1) }
+            if (sentence != null && !sentence.isEmpty()) {
+                addStyle(SpanStyle(background = spokenBackground, color = spokenColor), sentence.first, sentence.last + 1)
             }
         }
     }

@@ -48,7 +48,9 @@ import java.io.IOException
 internal val ThirdPartyNotices: List<ThirdPartyNotice> =
     listOf(
         ThirdPartyNotice(
-            name = "AndroidX (Activity, AppCompat, Browser, Compose, Core, Lifecycle, Navigation and the libraries they use)",
+            name =
+                "AndroidX (Activity, AppCompat, Browser, Compose, Core, Lifecycle, Media3, Navigation, WorkManager " +
+                    "and the libraries they use)",
             copyright = "The Android Open Source Project",
             license = License.Apache2,
         ),
@@ -60,7 +62,7 @@ internal val ThirdPartyNotices: List<ThirdPartyNotice> =
             license = License.Apache2,
         ),
         ThirdPartyNotice(
-            name = "JetBrains Java Annotations, JSpecify and Guava ListenableFuture",
+            name = "JetBrains Java Annotations, JSpecify and Guava",
             copyright = "JetBrains s.r.o., the JSpecify Authors and the Guava Authors",
             license = License.Apache2,
         ),

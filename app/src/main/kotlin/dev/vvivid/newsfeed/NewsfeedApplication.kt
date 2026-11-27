@@ -2,6 +2,8 @@ package dev.vvivid.newsfeed
 
 import android.app.Application
 import android.content.Context
+import dev.vvivid.newsfeed.audio.AudioDirs
+import dev.vvivid.newsfeed.audio.AudioPlaybackService
 import dev.vvivid.newsfeed.auth.KeystoreTokenCipher
 import dev.vvivid.newsfeed.auth.ServerDiscovery
 import dev.vvivid.newsfeed.auth.ServerSignIn
@@ -47,6 +49,7 @@ class AppContainer(
             httpClient = httpClient,
             clock = clock,
             appScope = appScope,
+            audioDirs = AudioDirs(File(context.filesDir, AudioPlaybackService.AUDIO_DIR), context.cacheDir),
         )
 
     val signInService: SignInService = ServerSignIn(ServerDiscovery(httpClient), tokenClient, sessionManager, clock)

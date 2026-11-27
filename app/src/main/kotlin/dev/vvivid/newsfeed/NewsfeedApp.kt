@@ -32,6 +32,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import dev.vvivid.newsfeed.audio.MediaArticlePlayer
+import dev.vvivid.newsfeed.audio.PreferencesAudioSettings
+import dev.vvivid.newsfeed.audio.WorkManagerAudioJobWatcher
 import dev.vvivid.newsfeed.auth.SessionState
 import dev.vvivid.newsfeed.auth.SignInService
 import dev.vvivid.newsfeed.auth.SignedInSession
@@ -41,6 +44,7 @@ import dev.vvivid.newsfeed.news.NewsRoute
 import dev.vvivid.newsfeed.news.NewsViewModel
 import dev.vvivid.newsfeed.onboarding.OnboardingRoute
 import dev.vvivid.newsfeed.onboarding.OnboardingViewModel
+import dev.vvivid.newsfeed.reader.ArticleAudioViewModel
 import dev.vvivid.newsfeed.reader.ArticleRoute
 import dev.vvivid.newsfeed.reader.ArticleViewModel
 import dev.vvivid.newsfeed.settings.LicensesRoute
@@ -142,11 +146,22 @@ fun NewsfeedApp(
             composable<Destination.Article> { entry ->
                 if (session == null) return@composable
                 CompositionLocalProvider(LocalThumbnailLoader provides session.thumbnails) {
+                    val appContext = context.applicationContext
                     ArticleRoute(
                         viewModel =
                             viewModel {
                                 val article = entry.toRoute<Destination.Article>()
                                 ArticleViewModel(article.articleId, article.inTrash, session.newsRepository)
+                            },
+                        audioViewModel =
+                            viewModel {
+                                ArticleAudioViewModel(
+                                    articleId = entry.toRoute<Destination.Article>().articleId,
+                                    repository = session.audio,
+                                    newPlayer = { scope -> MediaArticlePlayer(appContext, scope) },
+                                    watcher = WorkManagerAudioJobWatcher(appContext),
+                                    settings = PreferencesAudioSettings(appContext),
+                                )
                             },
                         onBack = { entry.ifResumed { navController.navigateUp() } },
                         // Finished-reading tracking comes with the in-app browser.

@@ -6,6 +6,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
+        Article audio keeps playing with the screen off or in another app: a media playback
+        foreground service with lock screen controls, holding the CPU awake while it plays. The
+        notification permission is asked for when the user creates audio, to say when it is ready.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
         Backups are off because sign-in state is tied to this device's Keystore and to one server:
         fullBackupContent covers Android 8 to 11, data_extraction_rules covers cloud backup and
         device-to-device transfer on Android 12 and newer.
@@ -35,5 +45,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Exported without a permission because the system's media controls, the lock screen and
+            Bluetooth devices must reach it, as every MediaSessionService is. Other apps can only
+            play, pause and seek: AudioPlaybackService accepts audio only from this app and only
+            from its own downloads.
+        -->
+        <service
+            android:name=".audio.AudioPlaybackService"
+            android:exported="true"
+            tools:ignore="ExportedService"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

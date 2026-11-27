@@ -1,12 +1,19 @@
 package dev.vvivid.newsfeed.reader
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.text.format.DateUtils
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomAppBar
@@ -43,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +74,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.vvivid.newsfeed.R
 import dev.vvivid.newsfeed.data.Article
@@ -85,13 +98,48 @@ import kotlinx.coroutines.launch
 @Composable
 fun ArticleRoute(
     viewModel: ArticleViewModel,
+    audioViewModel: ArticleAudioViewModel,
     onBack: () -> Unit,
     onOpenOriginal: (url: String) -> Unit,
     onOpenLink: (url: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val audioState by audioViewModel.uiState.collectAsStateWithLifecycle()
+    val listenState by audioViewModel.listenState.collectAsStateWithLifecycle()
+    val audioMessage by audioViewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val loaded = uiState as? ArticleUiState.Loaded
+    if (loaded != null) {
+        // The audio's parts are made from the body as the reader shows it, so their blocks match.
+        LaunchedEffect(loaded.article, loaded.body) {
+            audioViewModel.bind(loaded.article, readerBody(loaded.body, loaded.article.title))
+        }
+    }
+    LifecycleStartEffect(audioViewModel) {
+        audioViewModel.setVisible(true)
+        onStopOrDispose { audioViewModel.setVisible(false) }
+    }
+    val audioActions =
+        remember(audioViewModel) {
+            AudioActions(
+                onCreate = audioViewModel::create,
+                onPlaySample = audioViewModel::playSample,
+                onCancel = audioViewModel::cancel,
+                onRetry = audioViewModel::retry,
+                onDelete = audioViewModel::delete,
+                onListen = audioViewModel::listen,
+                onPause = audioViewModel::pause,
+                onSkip = audioViewModel::skip,
+                onStepPart = audioViewModel::stepPart,
+                onPreviousSection = audioViewModel::previousSection,
+                onNextSection = audioViewModel::nextSection,
+                onSeekToFraction = audioViewModel::seekToFraction,
+                onSpeed = audioViewModel::setSpeed,
+                onSleepTimer = audioViewModel::setSleepTimer,
+                onMessageShown = audioViewModel::messageShown,
+            )
+        }
     ArticleScreen(
         uiState = uiState,
         onBack = onBack,
@@ -102,6 +150,10 @@ fun ArticleRoute(
         onOpenLink = onOpenLink,
         onMessageShown = viewModel::messageShown,
         modifier = modifier,
+        audioState = audioState,
+        listenState = listenState,
+        audioMessage = audioMessage,
+        audioActions = audioActions,
     )
 }
 
@@ -128,11 +180,57 @@ fun ArticleScreen(
     onOpenLink: (url: String) -> Unit,
     onMessageShown: (ArticleMessage) -> Unit,
     modifier: Modifier = Modifier,
+    audioState: AudioUiState = AudioUiState.Unavailable,
+    listenState: ListenState = ListenState(),
+    audioMessage: AudioMessage? = null,
+    audioActions: AudioActions = AudioActions(),
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val loaded = uiState as? ArticleUiState.Loaded
     if (loaded?.message != null) {
         MessageSnackbar(loaded.message, loaded.article.shelf, snackbarHostState, onMessageShown)
+    }
+    if (audioMessage != null) AudioMessageSnackbar(audioMessage, snackbarHostState, audioActions.onMessageShown)
+    var showCreateAudio by rememberSaveable { mutableStateOf(false) }
+    var showPlayer by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteAudio by rememberSaveable { mutableStateOf(false) }
+    var confirmTrash by rememberSaveable { mutableStateOf(false) }
+    val askForNotifications = rememberNotificationPermissionRequest()
+    AudioDialogs(
+        title = loaded?.article?.title.orEmpty(),
+        audioState = audioState,
+        listenState = listenState,
+        actions = audioActions,
+        showCreateAudio = showCreateAudio,
+        onCreateAudio = { voiceId ->
+            askForNotifications()
+            audioActions.onCreate(voiceId)
+            showCreateAudio = false
+        },
+        onDismissCreateAudio = { showCreateAudio = false },
+        showPlayer = showPlayer,
+        onDismissPlayer = { showPlayer = false },
+        confirmDeleteAudio = confirmDeleteAudio,
+        onAskDeleteAudio = { confirmDeleteAudio = true },
+        onDismissDeleteAudio = { confirmDeleteAudio = false },
+        onDeleteAudio = {
+            confirmDeleteAudio = false
+            showPlayer = false
+            audioActions.onDelete()
+        },
+    )
+    if (confirmTrash) {
+        TrashAudioDialog(
+            onConfirm = {
+                confirmTrash = false
+                onAction(ArticleAction.MoveToTrash)
+            },
+            onDismiss = { confirmTrash = false },
+        )
+    }
+    // Moving an article with audio to Trash deletes the audio, so it asks first.
+    val onArticleAction = { action: ArticleAction ->
+        if (action == ArticleAction.MoveToTrash && audioState.hasAudio) confirmTrash = true else onAction(action)
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -165,7 +263,27 @@ fun ArticleScreen(
         modifier = modifier,
         topBar = { ArticleTopBar(onBack, sectionTitle = currentSection?.title, onShowContents = onShowContents) },
         bottomBar = {
-            if (loaded != null) ArticleBottomBar(loaded, onAction, onShare, onOpenOriginal)
+            if (loaded != null) {
+                Column {
+                    AudioDock(
+                        title = loaded.article.title,
+                        audioState = audioState,
+                        listenState = listenState,
+                        actions = audioActions,
+                        onExpand = { showPlayer = true },
+                    )
+                    ArticleBottomBar(
+                        state = loaded,
+                        audioState = audioState,
+                        listenState = listenState,
+                        onAction = onArticleAction,
+                        onShare = onShare,
+                        onOpenOriginal = onOpenOriginal,
+                        onCreateAudio = { showCreateAudio = true },
+                        onListen = audioActions.onListen,
+                    )
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -186,7 +304,17 @@ fun ArticleScreen(
             }
 
             is ArticleUiState.Loaded -> {
-                ArticleContent(uiState.article, body, listState, innerPadding, onOpenOriginal, onOpenLink)
+                ArticleContent(
+                    article = uiState.article,
+                    body = body,
+                    listState = listState,
+                    innerPadding = innerPadding,
+                    onOpenOriginal = onOpenOriginal,
+                    onOpenLink = onOpenLink,
+                    audioState = audioState,
+                    listenState = listenState,
+                    audioActions = audioActions,
+                )
             }
         }
     }
@@ -298,15 +426,33 @@ private fun ArticleTopBar(
     )
 }
 
-/** The shelf changes for the article, Share, and Open original. */
+/**
+ * The shelf changes for the article, Share, and the main action: Create audio or Listen when the
+ * server makes audio, otherwise Open original. When audio takes the main button, Open original
+ * moves among the icons.
+ */
 @Composable
 private fun ArticleBottomBar(
     state: ArticleUiState.Loaded,
+    audioState: AudioUiState,
+    listenState: ListenState,
     onAction: (ArticleAction) -> Unit,
     onShare: (Article) -> Unit,
     onOpenOriginal: (url: String) -> Unit,
+    onCreateAudio: () -> Unit,
+    onListen: () -> Unit,
 ) {
     val article = state.article
+    // An article the agent wrote without a source has no original to open.
+    val url = article.url
+    val audioMainAction =
+        when {
+            article.shelf == Shelf.Trash -> null
+            audioState is AudioUiState.NotCreated -> AudioMainAction.Create
+            audioState is AudioUiState.Ready && !listenState.isLoaded -> AudioMainAction.Listen
+            else -> null
+        }
+    val audioInUse = audioMainAction != null || audioState.hasAudio
     BottomAppBar(
         actions = {
             for (action in articleActions(article.shelf)) {
@@ -318,11 +464,33 @@ private fun ArticleBottomBar(
                     contentDescription = stringResource(R.string.action_share),
                 )
             }
+            if (audioInUse && url != null) {
+                IconButton(onClick = { onOpenOriginal(url) }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_open_in_new),
+                        contentDescription = stringResource(R.string.action_open_original),
+                    )
+                }
+            }
         },
         floatingActionButton = {
-            // An article the agent wrote without a source has no original to open.
-            val url = article.url
-            if (url != null) {
+            if (audioMainAction != null) {
+                val create = audioMainAction == AudioMainAction.Create
+                val label = stringResource(if (create) R.string.audio_create else R.string.audio_listen)
+                ExtendedFloatingActionButton(
+                    text = { Text(label) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(if (create) R.drawable.ic_waveform else R.drawable.ic_headphones),
+                            contentDescription = label,
+                        )
+                    },
+                    onClick = if (create) onCreateAudio else onListen,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+                )
+            } else if (url != null && !audioInUse) {
                 val label = stringResource(R.string.action_open_original)
                 ExtendedFloatingActionButton(
                     text = { Text(label) },
@@ -506,8 +674,89 @@ private fun ArticleContent(
     innerPadding: PaddingValues,
     onOpenOriginal: (url: String) -> Unit,
     onOpenLink: (url: String) -> Unit,
+    audioState: AudioUiState,
+    listenState: ListenState,
+    audioActions: AudioActions,
 ) {
     val layoutDirection = LocalLayoutDirection.current
+    val following = followSpokenBlock(listState, listenState)
+    Box(modifier = Modifier.fillMaxSize()) {
+        ArticleList(
+            article,
+            body,
+            listState,
+            innerPadding,
+            onOpenOriginal,
+            onOpenLink,
+            audioState,
+            listenState,
+            audioActions,
+            layoutDirection,
+        )
+        if (!following.value && listenState.isPlaying && listenState.highlight != null) {
+            BackToVoiceChip(
+                onClick = { following.value = true },
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = innerPadding.calculateBottomPadding() + 12.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Keeps the block the voice is reading on screen while playing. Scrolling by hand stops that, so
+ * the reader can look elsewhere; the returned value turns it back on (the "Back to the voice" chip).
+ */
+@Composable
+private fun followSpokenBlock(
+    listState: LazyListState,
+    listenState: ListenState,
+): MutableState<Boolean> {
+    val following = remember { mutableStateOf(true) }
+    var scrollingForVoice by remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling && !scrollingForVoice) following.value = false
+        }
+    }
+    val block = listenState.highlight?.block
+    LaunchedEffect(block, following.value, listenState.isPlaying) {
+        if (block == null || !following.value || !listenState.isPlaying) return@LaunchedEffect
+        val index = ITEMS_BEFORE_BODY + block
+        val layout = listState.layoutInfo
+        val item = layout.visibleItemsInfo.firstOrNull { it.index == index }
+        val comfortablyVisible =
+            item != null && item.offset >= 0 && item.offset + item.size <= layout.viewportEndOffset * FOLLOW_VISIBLE_FRACTION
+        if (comfortablyVisible) return@LaunchedEffect
+        scrollingForVoice = true
+        try {
+            listState.animateScrollToItem(index)
+        } finally {
+            scrollingForVoice = false
+        }
+    }
+    return following
+}
+
+/** The voice's block is scrolled to the top once it reaches this fraction of the screen. */
+private const val FOLLOW_VISIBLE_FRACTION = 0.8f
+
+@Composable
+private fun ArticleList(
+    article: Article,
+    body: List<BodyBlock>,
+    listState: LazyListState,
+    innerPadding: PaddingValues,
+    onOpenOriginal: (url: String) -> Unit,
+    onOpenLink: (url: String) -> Unit,
+    audioState: AudioUiState,
+    listenState: ListenState,
+    audioActions: AudioActions,
+    layoutDirection: LayoutDirection,
+) {
+    val spokenBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = SPOKEN_BLOCK_ALPHA)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
@@ -531,23 +780,47 @@ private fun ArticleContent(
                         .clip(RoundedCornerShape(20.dp)),
             )
         }
-        item { ArticleHeader(article, modifier = Modifier.padding(start = 24.dp, top = 6.dp, end = 24.dp)) }
+        item {
+            ArticleHeader(
+                article = article,
+                audioState = audioState,
+                listenState = listenState,
+                audioActions = audioActions,
+                modifier = Modifier.padding(start = 24.dp, top = 6.dp, end = 24.dp),
+            )
+        }
         val url = article.url
         if (body.isEmpty() && url != null) {
             item {
                 NoSavedBody(onOpenOriginal = { onOpenOriginal(url) }, modifier = Modifier.padding(horizontal = 24.dp))
             }
         } else {
-            items(body) { block ->
-                BodyBlockView(block, onLinkClick = onOpenLink, modifier = Modifier.padding(horizontal = 24.dp))
+            itemsIndexed(body) { index, block ->
+                val spoken = listenState.highlight?.takeIf { it.block == index }
+                // The block being read gets a soft background; its text stays where it was.
+                val placement =
+                    if (spoken == null) {
+                        Modifier.padding(horizontal = 24.dp)
+                    } else {
+                        Modifier
+                            .padding(horizontal = 14.dp)
+                            .background(spokenBackground, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    }
+                BodyBlockView(block, onLinkClick = onOpenLink, modifier = placement, spokenSentence = spoken?.sentence)
             }
         }
     }
 }
 
+private const val SPOKEN_BLOCK_ALPHA = 0.3f
+
 @Composable
 private fun ArticleHeader(
     article: Article,
+    audioState: AudioUiState,
+    listenState: ListenState,
+    audioActions: AudioActions,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -590,6 +863,10 @@ private fun ArticleHeader(
             color = MaterialTheme.colorScheme.tertiary,
             style = MaterialTheme.typography.headlineMedium,
         )
+        if (audioState is AudioUiState.Ready) {
+            ReadyAudioCard(audioState.audio, listenState, onListen = audioActions.onListen, onPause = audioActions.onPause)
+        }
+        if (audioState.hasAudio) AudioLockLine()
         Text(text = article.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, style = ArticleSummaryTextStyle)
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
     }
@@ -613,6 +890,87 @@ private fun NoSavedBody(
                 text = stringResource(R.string.action_open_original),
                 modifier = Modifier.padding(start = ButtonDefaults.IconSpacing),
             )
+        }
+    }
+}
+
+/** What the main button does for audio. */
+private enum class AudioMainAction { Create, Listen }
+
+/** The audio card docked above the bottom bar: a running job, a failure, or the mini player. */
+@Composable
+private fun AudioDock(
+    title: String,
+    audioState: AudioUiState,
+    listenState: ListenState,
+    actions: AudioActions,
+    onExpand: () -> Unit,
+) {
+    when (audioState) {
+        is AudioUiState.Generating -> GeneratingCard(audioState, actions.onCancel)
+        is AudioUiState.Downloading -> DownloadingCard(audioState)
+        is AudioUiState.Failed -> FailedCard(audioState, onRetry = actions.onRetry, onDelete = actions.onDelete)
+        is AudioUiState.Ready -> if (listenState.isLoaded) MiniPlayer(title, audioState.audio.voice.name, listenState, actions, onExpand)
+        else -> Unit
+    }
+}
+
+/** The audio sheets and dialogs the reader can show. */
+@Composable
+private fun AudioDialogs(
+    title: String,
+    audioState: AudioUiState,
+    listenState: ListenState,
+    actions: AudioActions,
+    showCreateAudio: Boolean,
+    onCreateAudio: (voiceId: String) -> Unit,
+    onDismissCreateAudio: () -> Unit,
+    showPlayer: Boolean,
+    onDismissPlayer: () -> Unit,
+    confirmDeleteAudio: Boolean,
+    onAskDeleteAudio: () -> Unit,
+    onDismissDeleteAudio: () -> Unit,
+    onDeleteAudio: () -> Unit,
+) {
+    if (showCreateAudio && audioState is AudioUiState.NotCreated && audioState.voices.isNotEmpty()) {
+        CreateAudioSheet(title, audioState, onCreate = onCreateAudio, onPlaySample = actions.onPlaySample, onDismiss = onDismissCreateAudio)
+    }
+    val ready = audioState as? AudioUiState.Ready
+    if (showPlayer && ready != null && listenState.isLoaded) {
+        PlayerSheet(title, ready.audio, listenState, actions, onDeleteAudio = onAskDeleteAudio, onDismiss = onDismissPlayer)
+    }
+    if (confirmDeleteAudio && ready != null) {
+        DeleteAudioDialog(ready.audio, onConfirm = onDeleteAudio, onDismiss = onDismissDeleteAudio)
+    }
+}
+
+@Composable
+private fun AudioMessageSnackbar(
+    message: AudioMessage,
+    snackbarHostState: SnackbarHostState,
+    onMessageShown: (AudioMessage) -> Unit,
+) {
+    val text = audioMessageText(message)
+    val currentOnMessageShown by rememberUpdatedState(onMessageShown)
+    LaunchedEffect(message) {
+        snackbarHostState.showSnackbar(text)
+        currentOnMessageShown(message)
+    }
+}
+
+/**
+ * Asks once for permission to post notifications, which says when audio is ready. Android 12 and
+ * older need no permission. Creating the audio goes ahead whatever the answer.
+ */
+@Composable
+private fun rememberNotificationPermissionRequest(): () -> Unit {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    return {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

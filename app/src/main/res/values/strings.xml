@@ -115,6 +115,87 @@
     <string name="article_diagram_zoom_hint">Pinch or double-tap to zoom</string>
     <string name="article_contents">Contents</string>
     <string name="article_contents_open">Show contents</string>
+    <string name="audio_ready_channel">Article audio</string>
+    <string name="audio_ready_title">Audio ready</string>
+    <string name="audio_create">Create audio</string>
+    <string name="audio_create_title">Create audio</string>
+    <string name="audio_voice_label">VOICE</string>
+    <string name="audio_sample">Sample</string>
+    <string name="audio_sample_of">Play a sample of %1$s</string>
+    <string name="audio_cost">Uses about %1$s characters of your voice credits, once</string>
+    <string name="audio_lock_note">While it has audio, the article\'s text is locked. To change it later, delete the audio first.</string>
+    <string name="audio_cancel">Cancel</string>
+    <string name="audio_generating">Creating audio with %1$s…</string>
+    <string name="audio_generating_under_a_minute">less than a minute left</string>
+    <string name="audio_generating_note">Keep reading or leave the app: your server keeps going, and you get a notification when it\'s ready.</string>
+    <string name="audio_downloading">Getting the audio ready to play offline…</string>
+    <string name="audio_failed">Couldn\'t create the audio</string>
+    <string name="audio_failed_unknown">The server stopped before the audio was finished.</string>
+    <string name="audio_retry">Try again</string>
+    <string name="audio_delete">Delete audio</string>
+    <string name="audio_locked">Text locked while it has audio</string>
+    <string name="audio_saved_offline">%1$s · saved, plays offline</string>
+    <string name="audio_listen">Listen</string>
+    <string name="audio_play">Play</string>
+    <string name="audio_pause">Pause</string>
+    <string name="audio_open_player">Open the player</string>
+    <string name="audio_mini_detail">%1$s · %2$s · %3$s</string>
+    <string name="audio_previous_part">Back one part</string>
+    <string name="audio_next_part">Forward one part</string>
+    <string name="audio_previous_section">Previous section</string>
+    <string name="audio_next_section">Next section</string>
+    <string name="audio_back_15">Back 15 seconds</string>
+    <string name="audio_forward_15">Forward 15 seconds</string>
+    <string name="audio_now_listening">NOW LISTENING</string>
+    <string name="audio_voice_saved">%1$s · saved on your server</string>
+    <string name="audio_created_on">Created %1$s · plays offline</string>
+    <string name="audio_up_next">UP NEXT</string>
+    <string name="audio_sleep_timer">Sleep timer</string>
+    <string name="audio_sleep_off">Turn off the sleep timer</string>
+    <string name="audio_delete_title">Delete this audio?</string>
+    <string name="audio_delete_unlocks">The article stays, and its text unlocks, so your agent can update it again.</string>
+    <string name="audio_delete_cost">Listening again means creating new audio, which uses about %1$s characters of your voice credits again.</string>
+    <string name="audio_trash_title">Move to Trash and delete its audio?</string>
+    <string name="audio_trash_deletes">This article has audio. Moving it to Trash deletes the recording.</string>
+    <string name="audio_trash_restore">You can still restore the article from Trash, but the audio won\'t come back. You\'d need to create it again.</string>
+    <string name="audio_back_to_voice">Back to the voice</string>
+    <string name="audio_create_failed">Couldn\'t create the audio. Try again.</string>
+    <string name="audio_changed_on_server">The article changed on the server. Check it, then try again.</string>
+    <string name="audio_download_failed">Couldn\'t get the audio. Check your connection.</string>
+    <string name="audio_delete_failed">Couldn\'t delete the audio. Try again.</string>
+    <string name="audio_deleted">Audio deleted. The text is unlocked.</string>
+    <plurals name="audio_generating_parts">
+        <item quantity="one">%1$d of %2$d part</item>
+        <item quantity="other">%1$d of %2$d parts</item>
+    </plurals>
+    <plurals name="audio_length">
+        <item quantity="one">About %1$d minute of audio</item>
+        <item quantity="other">About %1$d minutes of audio</item>
+    </plurals>
+    <plurals name="audio_generating_minutes_left">
+        <item quantity="one">about %1$d min left</item>
+        <item quantity="other">about %1$d min left</item>
+    </plurals>
+    <plurals name="audio_listen_minutes">
+        <item quantity="one">Listen · %1$d min</item>
+        <item quantity="other">Listen · %1$d min</item>
+    </plurals>
+    <plurals name="audio_minutes_left">
+        <item quantity="one">%1$d min left</item>
+        <item quantity="other">%1$d min left</item>
+    </plurals>
+    <plurals name="audio_sleep_in">
+        <item quantity="one">Sleep in %1$d min</item>
+        <item quantity="other">Sleep in %1$d min</item>
+    </plurals>
+    <plurals name="audio_sleep_option">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="audio_delete_removed">
+        <item quantity="one">The %1$d-minute recording (%2$s) is removed from your server.</item>
+        <item quantity="other">The %1$d-minute recording (%2$s) is removed from your server.</item>
+    </plurals>
     <string name="article_no_saved_body">The full article is not saved here. Open the original to read it.</string>
 
     <string name="settings_title">Settings</string>

@@ -24,6 +24,11 @@ junit = "4.13.2"
 # against the same coroutines library as the app.
 kotlinxCoroutines = "1.9.0"
 robolectric = "4.18.1"
+# Article audio: playback that continues with the screen off, with lock screen controls. 1.11 needs
+# compileSdk 36, which this project uses.
+media3 = "1.11.1"
+# Checks a server-side audio job after the reader closes and posts a notification when it is ready.
+work = "2.11.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -40,6 +45,9 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
+androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
 appauth = { module = "net.openid:appauth", version.ref = "appauth" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 commonmark-ext-gfm-tables = { module = "org.commonmark:commonmark-ext-gfm-tables", version.ref = "commonmark" }
