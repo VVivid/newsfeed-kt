@@ -8,6 +8,7 @@ import dev.vvivid.newsfeed.data.NewsRepository
 import dev.vvivid.newsfeed.data.PermissionDeniedException
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.data.ShelfOrder
+import dev.vvivid.newsfeed.data.TagCount
 import dev.vvivid.newsfeed.data.isArticleChangedOnServer
 import dev.vvivid.newsfeed.data.resultOf
 import dev.vvivid.newsfeed.data.resultOrNull
@@ -24,7 +25,18 @@ data class NewsUiState(
     val content: ShelfContent = ShelfContent.Loading,
     /** A snackbar message waiting to be shown. */
     val message: NewsMessage? = null,
-)
+    /** The tags in use on the shown shelf, most used first; empty until they load. */
+    val tags: List<TagCount> = emptyList(),
+    /**
+     * The tag filter: when not empty, the shelf shows only articles having at least one of these
+     * tags. It stays when the user switches shelves.
+     */
+    val selectedTags: Set<String> = emptySet(),
+) {
+    /** The tags to offer as filters: those in use, then selected ones the shelf no longer has. */
+    val filterTags: List<String>
+        get() = tags.map { it.tag }.let { inUse -> inUse + selectedTags.filterNot(inUse::contains).sorted() }
+}
 
 /** The articles of the selected shelf. */
 sealed interface ShelfContent {
@@ -122,14 +134,33 @@ class NewsViewModel(
     /** The running load of the shown shelf's next page; any newer load cancels it. */
     private var loadMoreJob: Job? = null
 
+    /** The running load of the shown shelf's tags; any newer load cancels it. */
+    private var tagsJob: Job? = null
+
     init {
         load(Shelf.Active)
     }
 
     fun selectShelf(shelf: Shelf) {
         if (shelf == _uiState.value.shelf) return
-        _uiState.update { it.copy(shelf = shelf, content = ShelfContent.Loading) }
+        _uiState.update { it.copy(shelf = shelf, content = ShelfContent.Loading, tags = emptyList()) }
         load(shelf)
+    }
+
+    /** Adds [tag] to the filter, or takes it out if it is in already, and reloads the shelf. */
+    fun toggleTag(tag: String) {
+        _uiState.update { state ->
+            val selected = if (tag in state.selectedTags) state.selectedTags - tag else state.selectedTags + tag
+            state.copy(selectedTags = selected, content = ShelfContent.Loading)
+        }
+        load(_uiState.value.shelf)
+    }
+
+    /** Shows the whole shelf again. */
+    fun clearTags() {
+        if (_uiState.value.selectedTags.isEmpty()) return
+        _uiState.update { it.copy(selectedTags = emptySet(), content = ShelfContent.Loading) }
+        load(_uiState.value.shelf)
     }
 
     /**
@@ -156,10 +187,12 @@ class NewsViewModel(
     private fun load(shelf: Shelf) {
         loadJob?.cancel()
         loadMoreJob?.cancel()
+        loadTags(shelf)
+        val tags = _uiState.value.selectedTags
         val shownCount = (_uiState.value.content as? ShelfContent.Loaded)?.articles?.size ?: 0
         loadJob =
             viewModelScope.launch {
-                val page = resultOrNull { loadFromStart(shelf, minimumCount = shownCount) }
+                val page = resultOrNull { loadFromStart(shelf, tags, minimumCount = shownCount) }
                 _uiState.update { state ->
                     val content =
                         when {
@@ -175,15 +208,32 @@ class NewsViewModel(
             }
     }
 
-    /** Pages of [shelf] from its start, until there are [minimumCount] articles or the shelf ends. */
+    /**
+     * The tags of [shelf], for the filter row. If they cannot be loaded the row keeps what it shows;
+     * the articles still load.
+     */
+    private fun loadTags(shelf: Shelf) {
+        tagsJob?.cancel()
+        tagsJob =
+            viewModelScope.launch {
+                val tags = resultOrNull { repository.listTags(shelf) } ?: return@launch
+                _uiState.update { if (it.shelf == shelf) it.copy(tags = tags) else it }
+            }
+    }
+
+    /**
+     * Pages of [shelf] with [tags] from its start, until there are [minimumCount] articles or the
+     * shelf ends.
+     */
     private suspend fun loadFromStart(
         shelf: Shelf,
+        tags: Set<String>,
         minimumCount: Int,
     ): ArticlePage {
         val articles = mutableListOf<Article>()
         var cursor: String? = null
         do {
-            val page = repository.listArticles(shelf, cursor)
+            val page = repository.listArticles(shelf, cursor, tags)
             articles.addNew(page.articles)
             cursor = page.nextCursor
         } while (cursor != null && articles.size < minimumCount.coerceAtMost(MAX_RELOADED_ARTICLES))
@@ -196,13 +246,14 @@ class NewsViewModel(
      */
     fun loadMore() {
         val shelf = _uiState.value.shelf
+        val tags = _uiState.value.selectedTags
         val loaded = _uiState.value.content as? ShelfContent.Loaded ?: return
         val cursor = loaded.nextCursor ?: return
         if (loaded.isLoadingMore || loadJob?.isActive == true) return
         _uiState.update { state -> state.withLoaded { it.copy(isLoadingMore = true, loadMoreFailed = false) } }
         loadMoreJob =
             viewModelScope.launch {
-                val page = resultOrNull { repository.listArticles(shelf, cursor) }
+                val page = resultOrNull { repository.listArticles(shelf, cursor, tags) }
                 _uiState.update { state ->
                     state.withLoaded { content ->
                         if (page == null) {
@@ -307,7 +358,7 @@ private fun NewsUiState.withArticleRemoved(articleId: String): NewsUiState =
 
 /**
  * Puts [article] where it now belongs: into the shown list at its place in [ShelfOrder] if it is on
- * the shown shelf, and out of the list otherwise. An article that sorts after every loaded one
+ * the shown shelf and passes the tag filter, and out of the list otherwise. An article that sorts after every loaded one
  * belongs to a page that is not loaded yet, unless the shelf has no more pages.
  */
 private fun NewsUiState.withArticlePlaced(article: Article): NewsUiState =
@@ -318,6 +369,7 @@ private fun NewsUiState.withArticlePlaced(article: Article): NewsUiState =
         val articles =
             when {
                 article.shelf != shelf -> others
+                selectedTags.isNotEmpty() && article.tags.none(selectedTags::contains) -> others
                 index >= 0 -> others.toMutableList().apply { add(index, article) }
                 loaded.hasMore -> others
                 else -> others + article

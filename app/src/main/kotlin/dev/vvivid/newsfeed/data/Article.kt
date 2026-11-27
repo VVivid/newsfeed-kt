@@ -22,8 +22,11 @@ enum class Shelf {
  */
 data class Article(
     val id: String,
-    /** The canonical HTTPS address of the original article. */
-    val url: String,
+    /**
+     * The canonical HTTPS address of the original article, or null for an article the agent wrote
+     * itself without a source (tagged [GENERATED_TAG]).
+     */
+    val url: String?,
     val title: String,
     /** A short introduction from the source (`summary`). */
     val summary: String,
@@ -41,9 +44,15 @@ data class Article(
      * image's hash (`thumbnail_hash`) for a saved thumbnail, otherwise the article's revision.
      */
     val thumbnailKey: String?,
+    /** The agent's tags, lowercase slugs such as `explore` or `system-design`. */
+    val tags: List<String> = emptyList(),
 ) {
-    /** The site the article comes from, as the server's web reader names it. */
-    val sourceHost: String = sourceHostOf(url)
+    /** The site the article comes from, as the server's web reader names it; null without a URL. */
+    val sourceHost: String? = url?.let(::sourceHostOf)
+
+    /** The agent wrote this article itself instead of saving one from a source. */
+    val isGenerated: Boolean
+        get() = GENERATED_TAG in tags
 
     /** The shelf the article is on. An article in Trash keeps [archivedAt], so Trash comes first. */
     val shelf: Shelf
@@ -65,6 +74,15 @@ data class Article(
  */
 val ShelfOrder: Comparator<Article> =
     compareByDescending<Article> { it.shelvedAt }.thenByDescending { it.id }
+
+/** The tag agents put on articles they wrote themselves. */
+const val GENERATED_TAG = "generated"
+
+/** A tag in use on a shelf and how many of the shelf's articles have it. */
+data class TagCount(
+    val tag: String,
+    val count: Int,
+)
 
 /** A whole article (`GET /api/v1/articles/{id}`): the listed fields plus the saved body. */
 data class ArticleDetail(

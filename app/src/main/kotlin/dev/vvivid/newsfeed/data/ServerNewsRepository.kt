@@ -40,6 +40,13 @@ class ServerNewsRepository(
             .addPathSegments("api/v1/articles")
             .build()
 
+    private val tagsUrl: HttpUrl =
+        serverOrigin
+            .toHttpUrl()
+            .newBuilder()
+            .addPathSegments("api/v1/tags")
+            .build()
+
     /**
      * The keys of state changes whose outcome is unknown: the request may have reached the server,
      * but no answer came back. Trying the same change again sends the same key, so the server
@@ -50,17 +57,16 @@ class ServerNewsRepository(
     override suspend fun listArticles(
         shelf: Shelf,
         cursor: String?,
+        tags: Set<String>,
     ): ArticlePage {
         val url =
             articlesUrl
                 .newBuilder()
                 .addQueryParameter("limit", PAGE_SIZE.toString())
+                .addShelf(shelf)
                 .apply {
-                    when (shelf) {
-                        Shelf.Active -> Unit
-                        Shelf.Archive -> addQueryParameter("archived", "true")
-                        Shelf.Trash -> addQueryParameter("trashed", "true")
-                    }
+                    // Repeated parameters: the server keeps articles having any of these tags.
+                    tags.sorted().forEach { addQueryParameter("tag", it) }
                     if (cursor != null) addQueryParameter("cursor", cursor)
                 }.build()
         val page = request(Request.Builder().url(url).get(), ArticleListJson.serializer())
@@ -69,6 +75,22 @@ class ServerNewsRepository(
             nextCursor = page.nextCursor?.ifEmpty { null },
         )
     }
+
+    override suspend fun listTags(shelf: Shelf): List<TagCount> {
+        val url = tagsUrl.newBuilder().addShelf(shelf).build()
+        val list = request(Request.Builder().url(url).get(), TagListJson.serializer())
+        return list.tags.orEmpty().map { TagCount(it.tag, it.count) }
+    }
+
+    /** Selects [shelf] as the list and tag routes expect: Active by default. */
+    private fun HttpUrl.Builder.addShelf(shelf: Shelf): HttpUrl.Builder =
+        apply {
+            when (shelf) {
+                Shelf.Active -> Unit
+                Shelf.Archive -> addQueryParameter("archived", "true")
+                Shelf.Trash -> addQueryParameter("trashed", "true")
+            }
+        }
 
     override suspend fun getArticle(
         id: String,

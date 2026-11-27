@@ -115,6 +115,8 @@ class NewsScreenTest {
                     uiState = NewsUiState(content = ShelfContent.Loaded(listOf(lead, earlier))),
                     now = TestNow,
                     onShelfSelect = {},
+                    onTagToggle = {},
+                    onClearTags = {},
                     onRefresh = {},
                     onLoadMore = {},
                     onArticleClick = {},

@@ -39,7 +39,8 @@ fun ArticleCover(
     }
     val bitmap = thumbnail
     if (bitmap == null) {
-        FallbackCover(articleUrl = article.url, modifier = modifier)
+        // An article without a source picks its cover by ID instead.
+        FallbackCover(articleUrl = article.url ?: article.id, modifier = modifier)
     } else {
         Image(
             bitmap = remember(bitmap) { bitmap.asImageBitmap() },

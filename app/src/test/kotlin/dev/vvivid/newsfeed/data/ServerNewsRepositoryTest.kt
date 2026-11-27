@@ -62,6 +62,50 @@ class ServerNewsRepositoryTest {
         }
 
     @Test
+    fun `a filtered page repeats the tag parameter, and tags are listed per shelf`() =
+        runTest {
+            server.enqueue(jsonResponse("""{"articles":[]}"""))
+            server.enqueue(jsonResponse("""{"tags":[{"tag":"explore","count":3},{"tag":"leetcode","count":1}]}"""))
+            server.enqueue(jsonResponse("""{"tags":null}"""))
+            val repository = repository()
+
+            repository.listArticles(Shelf.Active, tags = setOf("leetcode", "explore"))
+            val tags = repository.listTags(Shelf.Archive)
+            val none = repository.listTags(Shelf.Trash)
+
+            val page = server.nextRequest().url
+            assertEquals(listOf("explore", "leetcode"), page.queryParameterValues("tag"))
+            val tagRequest = server.nextRequest().url
+            assertEquals("/api/v1/tags", tagRequest.encodedPath)
+            assertEquals("true", tagRequest.queryParameter("archived"))
+            assertEquals(listOf(TagCount("explore", 3), TagCount("leetcode", 1)), tags)
+            assertEquals("true", server.nextRequest().url.queryParameter("trashed"))
+            assertEquals(emptyList<TagCount>(), none)
+        }
+
+    @Test
+    fun `an article the agent wrote has tags and may have no address`() =
+        runTest {
+            server.enqueue(
+                jsonResponse(
+                    """
+                    {"articles":[
+                      {"id":"G1","title":"Two Sum","summary":"Explained.","revision":1,"created_at":1764000000000,
+                       "tags":["generated","leetcode"]}
+                    ]}
+                    """.trimIndent(),
+                ),
+            )
+
+            val article = repository().listArticles(Shelf.Active).articles.single()
+
+            assertNull(article.url)
+            assertNull(article.sourceHost)
+            assertEquals(listOf("generated", "leetcode"), article.tags)
+            assertTrue(article.isGenerated)
+        }
+
+    @Test
     fun `a page becomes articles, and fields the app does not use are ignored`() =
         runTest {
             server.enqueue(

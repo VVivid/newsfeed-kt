@@ -14,12 +14,17 @@ package dev.vvivid.newsfeed.data
 interface NewsRepository {
     /**
      * One page of [shelf] in [ShelfOrder]: the first page, or the page that follows the one whose
-     * [ArticlePage.nextCursor] is [cursor].
+     * [ArticlePage.nextCursor] is [cursor]. A non-empty [tags] keeps only articles having at least
+     * one of them; a cursor continues only the same shelf and tags.
      */
     suspend fun listArticles(
         shelf: Shelf,
         cursor: String? = null,
+        tags: Set<String> = emptySet(),
     ): ArticlePage
+
+    /** The tags on [shelf]'s articles with their counts, most used first. */
+    suspend fun listTags(shelf: Shelf): List<TagCount>
 
     /** One article with its saved body. An article in Trash is only found with [inTrash]. */
     suspend fun getArticle(

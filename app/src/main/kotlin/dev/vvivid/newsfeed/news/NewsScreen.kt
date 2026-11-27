@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -26,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -105,6 +107,8 @@ fun NewsRoute(
         uiState = uiState,
         now = now,
         onShelfSelect = viewModel::selectShelf,
+        onTagToggle = viewModel::toggleTag,
+        onClearTags = viewModel::clearTags,
         onRefresh = viewModel::refresh,
         onLoadMore = viewModel::loadMore,
         onArticleClick = onOpenArticle,
@@ -127,6 +131,8 @@ fun NewsScreen(
     now: Instant,
     onShelfSelect: (Shelf) -> Unit,
     onRefresh: () -> Unit,
+    onTagToggle: (String) -> Unit,
+    onClearTags: () -> Unit,
     onLoadMore: () -> Unit,
     onArticleClick: (Article) -> Unit,
     onArchive: (Article) -> Unit,
@@ -157,6 +163,14 @@ fun NewsScreen(
                 onSelect = onShelfSelect,
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 12.dp),
             )
+            if (uiState.filterTags.isNotEmpty()) {
+                TagFilterRow(
+                    uiState = uiState,
+                    onTagToggle = onTagToggle,
+                    onClearTags = onClearTags,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
             // The list scrolls behind the navigation bar and ends above it.
             val listPadding =
                 PaddingValues(start = 16.dp, end = 16.dp, bottom = innerPadding.calculateBottomPadding() + 28.dp)
@@ -294,6 +308,44 @@ private fun ShelfSelector(
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = Shelf.entries.size),
                 colors = colors,
                 label = { Text(stringResource(shelf.labelRes)) },
+            )
+        }
+    }
+}
+
+/**
+ * The tag filter: "All", then every tag in use on the shelf with its count. Selecting several tags
+ * shows articles having any of them.
+ */
+@Composable
+private fun TagFilterRow(
+    uiState: NewsUiState,
+    onTagToggle: (String) -> Unit,
+    onClearTags: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val counts = remember(uiState.tags) { uiState.tags.associate { it.tag to it.count } }
+    val description = stringResource(R.string.news_tag_filter_description)
+    LazyRow(
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = description },
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item(key = "all") {
+            FilterChip(
+                selected = uiState.selectedTags.isEmpty(),
+                onClick = onClearTags,
+                label = { Text(stringResource(R.string.news_tag_filter_all)) },
+            )
+        }
+        items(uiState.filterTags, key = { "tag:$it" }) { tag ->
+            val count = counts[tag]
+            FilterChip(
+                selected = tag in uiState.selectedTags,
+                onClick = { onTagToggle(tag) },
+                label = {
+                    Text(if (count == null) tag else stringResource(R.string.news_tag_filter_label, tag, count))
+                },
             )
         }
     }
@@ -599,6 +651,7 @@ private fun LeadArticleCard(
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(text = article.summary, style = MaterialTheme.typography.bodyMedium)
+                ArticleTags(article)
             }
         }
     }
@@ -626,20 +679,38 @@ private fun CompactArticleCard(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                ArticleTags(article)
             }
             ArticleCover(article, modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)))
         }
     }
 }
 
-/** The source and how long ago the article arrived on its shelf: saved, archived or trashed. */
+/** The article's tags as one line, such as "#generated #system-design"; nothing without tags. */
+@Composable
+private fun ArticleTags(article: Article) {
+    if (article.tags.isEmpty()) return
+    Text(
+        text = article.tags.joinToString(" ") { "#$it" },
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.labelSmall,
+    )
+}
+
+/**
+ * The source and how long ago the article arrived on its shelf: saved, archived or trashed. An
+ * article the agent wrote without a source names the agent instead.
+ */
 @Composable
 private fun ArticleMeta(
     article: Article,
     now: Instant,
 ) {
+    val source = article.sourceHost ?: stringResource(R.string.news_source_agent)
     Text(
-        text = stringResource(R.string.news_article_meta, article.sourceHost, relativeAge(article.shelvedAt, now)),
+        text = stringResource(R.string.news_article_meta, source, relativeAge(article.shelvedAt, now)),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -751,6 +822,8 @@ private fun NewsScreenPreview(
             uiState = NewsUiState(shelf = shelf, content = content),
             now = PreviewSamples.now,
             onShelfSelect = {},
+            onTagToggle = {},
+            onClearTags = {},
             onRefresh = {},
             onLoadMore = {},
             onArticleClick = {},

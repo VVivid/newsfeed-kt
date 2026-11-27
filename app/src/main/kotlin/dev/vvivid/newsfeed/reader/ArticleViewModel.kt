@@ -134,7 +134,7 @@ class ArticleViewModel(
         lastSeenInTrash = detail.article.shelf == Shelf.Trash
         val body =
             detail.contentMarkdown?.let { markdown ->
-                withContext(parsingDispatcher) { parseArticleBody(markdown, detail.article.url) }
+                withContext(parsingDispatcher) { parseArticleBody(markdown, detail.article.url.orEmpty()) }
             }
         return ArticleUiState.Loaded(detail.article, body.orEmpty())
     }

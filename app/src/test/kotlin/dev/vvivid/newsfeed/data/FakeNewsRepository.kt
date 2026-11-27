@@ -28,6 +28,21 @@ class FakeNewsRepository(
     /** The shelves listed so far, one entry per page, in call order. */
     val listedShelves = mutableListOf<Shelf>()
 
+    /** The tag filter of each listed page, in call order. */
+    val listedTags = mutableListOf<Set<String>>()
+
+    /** Counts tags as the server does: most used first, then alphabetically. */
+    override suspend fun listTags(shelf: Shelf): List<TagCount> {
+        failIfRequested()
+        return articles.values
+            .filter { it.shelf == shelf }
+            .flatMap { it.tags }
+            .groupingBy { it }
+            .eachCount()
+            .map { (tag, count) -> TagCount(tag, count) }
+            .sortedWith(compareByDescending<TagCount> { it.count }.thenBy { it.tag })
+    }
+
     /** The writes (moves) received so far, failed ones included. */
     var writeCount = 0
         private set
@@ -63,12 +78,17 @@ class FakeNewsRepository(
     override suspend fun listArticles(
         shelf: Shelf,
         cursor: String?,
+        tags: Set<String>,
     ): ArticlePage {
         listedShelves += shelf
+        listedTags += listOf(tags)
         heldShelves[shelf]?.await()
         failIfRequested()
         val start = cursor?.let { it.removePrefix("${shelf.name}:").toInt() } ?: 0
-        val onShelf = articles.values.filter { it.shelf == shelf }.sortedWith(ShelfOrder)
+        val onShelf =
+            articles.values
+                .filter { it.shelf == shelf && (tags.isEmpty() || it.tags.any(tags::contains)) }
+                .sortedWith(ShelfOrder)
         val end = minOf(start + pageSize, onShelf.size)
         val nextCursor = if (end < onShelf.size) "${shelf.name}:$end" else null
         return ArticlePage(onShelf.subList(minOf(start, end), end), nextCursor)

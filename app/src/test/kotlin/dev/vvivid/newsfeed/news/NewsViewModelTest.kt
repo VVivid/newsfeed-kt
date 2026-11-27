@@ -41,6 +41,51 @@ class NewsViewModelTest {
         }
 
     @Test
+    fun `selecting tags shows articles having any of them, and All shows the whole shelf`() =
+        runTest {
+            val explore = testArticle("explore", savedHoursAgo = 1, tags = listOf("explore", "go"))
+            val generated = testArticle("generated", savedHoursAgo = 2, tags = listOf("generated", "leetcode"), url = null)
+            val plain = testArticle("plain", savedHoursAgo = 3)
+            val tagged = FakeNewsRepository(listOf(explore, generated, plain))
+            val viewModel = NewsViewModel(tagged)
+            advanceUntilIdle()
+            assertEquals(listOf("explore", "generated", "go", "leetcode"), viewModel.uiState.value.filterTags)
+
+            viewModel.toggleTag("leetcode")
+            advanceUntilIdle()
+            assertEquals(ShelfContent.Loaded(listOf(generated)), viewModel.uiState.value.content)
+
+            viewModel.toggleTag("go")
+            advanceUntilIdle()
+            assertEquals(setOf("go", "leetcode"), tagged.listedTags.last())
+            assertEquals(ShelfContent.Loaded(listOf(explore, generated)), viewModel.uiState.value.content)
+
+            viewModel.clearTags()
+            advanceUntilIdle()
+            assertEquals(emptySet<String>(), viewModel.uiState.value.selectedTags)
+            assertEquals(ShelfContent.Loaded(listOf(explore, generated, plain)), viewModel.uiState.value.content)
+        }
+
+    @Test
+    fun `an article moved back under a tag filter it does not pass stays out of the list`() =
+        runTest {
+            val go = testArticle("go", savedHoursAgo = 1, tags = listOf("go"))
+            val other = testArticle("other", savedHoursAgo = 2)
+            val viewModel = NewsViewModel(FakeNewsRepository(listOf(go, other)))
+            advanceUntilIdle()
+            viewModel.archive(other)
+            advanceUntilIdle()
+            val moved = viewModel.uiState.value.message as NewsMessage.Moved
+
+            viewModel.toggleTag("go")
+            advanceUntilIdle()
+            viewModel.undo(moved)
+            advanceUntilIdle()
+
+            assertEquals(ShelfContent.Loaded(listOf(go)), viewModel.uiState.value.content)
+        }
+
+    @Test
     fun `a failed first load shows the failure, and refresh loads again`() =
         runTest {
             repository.failure = IOException("offline")

@@ -13,9 +13,11 @@ fun testArticle(
     archivedHoursAgo: Long? = null,
     trashedHoursAgo: Long? = null,
     revision: Long = 1,
+    tags: List<String> = emptyList(),
+    url: String? = "https://news.example.com/articles/$id",
 ) = Article(
     id = id,
-    url = "https://news.example.com/articles/$id",
+    url = url,
     title = "Title of $id",
     summary = "Summary of $id.",
     revision = revision,
@@ -23,4 +25,5 @@ fun testArticle(
     archivedAt = archivedHoursAgo?.let { TestNow - Duration.ofHours(it) },
     trashedAt = trashedHoursAgo?.let { TestNow - Duration.ofHours(it) },
     thumbnailKey = null,
+    tags = tags,
 )

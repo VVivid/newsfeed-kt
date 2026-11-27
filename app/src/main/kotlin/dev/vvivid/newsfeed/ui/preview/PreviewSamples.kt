@@ -115,7 +115,7 @@ internal object PreviewSamples {
                 fan-curve --profile quiet
                 ```
                 """.trimIndent(),
-            sourceUrl = activeArticles.first().url,
+            sourceUrl = activeArticles.first().url.orEmpty(),
         )
     }
 

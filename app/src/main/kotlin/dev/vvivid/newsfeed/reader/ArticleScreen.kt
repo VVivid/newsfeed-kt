@@ -98,7 +98,8 @@ private fun shareIntent(article: Article): Intent {
     val send =
         Intent(Intent.ACTION_SEND)
             .setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, article.url)
+            // An article the agent wrote has no address to share, so its title stands in.
+            .putExtra(Intent.EXTRA_TEXT, article.url ?: article.title)
             .putExtra(Intent.EXTRA_TITLE, article.title)
     return Intent.createChooser(send, null)
 }
@@ -251,16 +252,20 @@ private fun ArticleBottomBar(
             }
         },
         floatingActionButton = {
-            val label = stringResource(R.string.action_open_original)
-            ExtendedFloatingActionButton(
-                text = { Text(label) },
-                // This FAB hides its text from accessibility services, so the icon carries the label.
-                icon = { Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = label) },
-                onClick = { onOpenOriginal(article.url) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
-            )
+            // An article the agent wrote without a source has no original to open.
+            val url = article.url
+            if (url != null) {
+                val label = stringResource(R.string.action_open_original)
+                ExtendedFloatingActionButton(
+                    text = { Text(label) },
+                    // This FAB hides its text from accessibility services, so the icon carries the label.
+                    icon = { Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = label) },
+                    onClick = { onOpenOriginal(url) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+                )
+            }
         },
     )
 }
@@ -341,9 +346,10 @@ private fun ArticleContent(
             )
         }
         item { ArticleHeader(article, modifier = Modifier.padding(start = 24.dp, top = 6.dp, end = 24.dp)) }
-        if (body.isEmpty()) {
+        val url = article.url
+        if (body.isEmpty() && url != null) {
             item {
-                NoSavedBody(onOpenOriginal = { onOpenOriginal(article.url) }, modifier = Modifier.padding(horizontal = 24.dp))
+                NoSavedBody(onOpenOriginal = { onOpenOriginal(url) }, modifier = Modifier.padding(horizontal = 24.dp))
             }
         } else {
             items(body) { block ->
@@ -379,7 +385,7 @@ private fun ArticleHeader(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             ) {
                 Text(
-                    text = article.sourceHost,
+                    text = article.sourceHost ?: stringResource(R.string.news_source_agent),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

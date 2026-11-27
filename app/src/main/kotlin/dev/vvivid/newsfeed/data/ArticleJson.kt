@@ -12,7 +12,8 @@ import java.time.Instant
 @Serializable
 internal class ArticleJson(
     val id: String,
-    val url: String,
+    /** Left out for an article the agent wrote itself without a source. */
+    val url: String? = null,
     val title: String,
     val summary: String,
     val revision: Long,
@@ -22,11 +23,13 @@ internal class ArticleJson(
     @SerialName("thumbnail_status") val thumbnailStatus: String? = null,
     @SerialName("thumbnail_hash") val thumbnailHash: String? = null,
     @SerialName("content_markdown") val contentMarkdown: String? = null,
+    /** Lowercase slugs in the server's order; left out when the article has none. */
+    val tags: List<String>? = null,
 ) {
     fun toArticle(): Article =
         Article(
             id = id,
-            url = url,
+            url = url?.ifEmpty { null },
             title = title,
             summary = summary,
             revision = revision,
@@ -34,6 +37,7 @@ internal class ArticleJson(
             archivedAt = timestampOrNull(archivedAt),
             trashedAt = timestampOrNull(trashedAt),
             thumbnailKey = thumbnailKey(),
+            tags = tags.orEmpty(),
         )
 
     fun toDetail(): ArticleDetail = ArticleDetail(toArticle(), contentMarkdown?.ifEmpty { null })
@@ -69,4 +73,16 @@ internal class ArticleListJson(
 internal class ArticleStateChangeJson(
     @SerialName("expected_revision") val expectedRevision: Long,
     @SerialName("idempotency_key") val idempotencyKey: String,
+)
+
+/** The tags on one shelf (`GET /api/v1/tags`), most used first. */
+@Serializable
+internal class TagListJson(
+    val tags: List<TagCountJson>? = null,
+)
+
+@Serializable
+internal class TagCountJson(
+    val tag: String,
+    val count: Int,
 )

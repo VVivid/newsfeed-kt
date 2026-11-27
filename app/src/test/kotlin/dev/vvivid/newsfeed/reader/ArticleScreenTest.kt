@@ -62,7 +62,7 @@ class ArticleScreenTest {
         val openedLinks = mutableListOf<String>()
         setArticle(
             article,
-            body = parseArticleBody("See [the notes](https://example.org/notes).", article.url),
+            body = parseArticleBody("See [the notes](https://example.org/notes).", article.url.orEmpty()),
             onOpenLink = { openedLinks += it },
         )
 
