@@ -13,6 +13,7 @@ import dev.vvivid.newsfeed.audio.AudioUnavailableException
 import dev.vvivid.newsfeed.audio.AudioVoice
 import dev.vvivid.newsfeed.audio.HEADER_BLOCK
 import dev.vvivid.newsfeed.audio.PlayerState
+import dev.vvivid.newsfeed.audio.PlaylistPart
 import dev.vvivid.newsfeed.audio.SpeechSegment
 import dev.vvivid.newsfeed.audio.playlistIdOf
 import dev.vvivid.newsfeed.data.Article
@@ -437,7 +438,7 @@ class ArticleAudioViewModel(
         } else {
             val title = article?.title.orEmpty()
             player.setSpeed(settings.speed)
-            player.play(playlistId(ready.audio), ready.files, title, ready.audio.voice.name)
+            player.play(playlistId(ready.audio), ready.files, title, ready.audio.voice.name, playlistParts(ready.audio.segments))
         }
     }
 
@@ -544,6 +545,14 @@ class ArticleAudioViewModel(
         }
 
     private fun playlistId(audio: ArticleAudio): String = playlistIdOf(articleId, audio.createdAt.toEpochMilli())
+
+    /** Each segment's length and the section heading it reads in, for the home screen's player. */
+    private fun playlistParts(segments: List<AudioSegment>): List<PlaylistPart> {
+        val headings = body.withIndex().filter { it.value is BodyBlock.Heading }
+        return segments.map { segment ->
+            PlaylistPart(segment.durationMs, headings.lastOrNull { it.index <= segment.block }?.value?.headingText())
+        }
+    }
 
     private fun listenState(
         state: AudioUiState,

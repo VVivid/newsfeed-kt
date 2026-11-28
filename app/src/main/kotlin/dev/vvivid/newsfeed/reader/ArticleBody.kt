@@ -53,9 +53,13 @@ sealed interface BodyBlock {
         val source: String,
     ) : BodyBlock
 
-    /** Preformatted text, shown in a monospace font without wrapping. */
+    /**
+     * Preformatted text, shown in a monospace font without wrapping. [language] is the first word
+     * of a fenced block's info string, lowercased, such as "go"; null for none or an indented block.
+     */
     data class CodeBlock(
         val code: String,
+        val language: String? = null,
     ) : BodyBlock
 
     /**
@@ -156,7 +160,7 @@ private class BodyBuilder(
 
             is OrderedList -> listBlock(node, firstNumber = node.markerStartNumber ?: 1)
 
-            is FencedCodeBlock -> if (node.isMermaid()) diagram(node.literal) else codeBlock(node.literal)
+            is FencedCodeBlock -> if (node.isMermaid()) diagram(node.literal) else codeBlock(node.literal, node.language())
 
             is IndentedCodeBlock -> codeBlock(node.literal)
 
@@ -176,8 +180,10 @@ private class BodyBuilder(
 
     private fun diagram(literal: String?): BodyBlock? = literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.Diagram(it) }
 
-    private fun codeBlock(literal: String?): BodyBlock? =
-        literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.CodeBlock(it) }
+    private fun codeBlock(
+        literal: String?,
+        language: String? = null,
+    ): BodyBlock? = literal?.trimEnd('\n')?.takeIf { it.isNotBlank() }?.let { BodyBlock.CodeBlock(it, language) }
 
     /** The inline content of [block], or null if nothing visible is left. */
     private fun text(block: Node): BodyText? = InlineTextBuilder(sourceUrl).apply { appendChildren(block) }.build()
@@ -334,3 +340,13 @@ private fun sourceBaseUri(sourceUrl: String): URI {
 
 /** A fenced block whose info string names Mermaid, such as ```mermaid. */
 private fun FencedCodeBlock.isMermaid(): Boolean = info?.trim()?.substringBefore(' ')?.equals("mermaid", ignoreCase = true) == true
+
+/** The language a fenced block names, such as "go" for ```go; null when it names none. */
+private fun FencedCodeBlock.language(): String? =
+    info
+        ?.trim()
+        ?.substringBefore(' ')
+        ?.lowercase()
+        ?.takeIf { it.isNotEmpty() && it.length <= MAX_LANGUAGE_LENGTH }
+
+private const val MAX_LANGUAGE_LENGTH = 20

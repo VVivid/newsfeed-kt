@@ -1,6 +1,7 @@
 package dev.vvivid.newsfeed.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -75,6 +76,21 @@ class SettingsScreenTest {
         composeRule.runOnIdle { assertEquals(listOf(ThemeMode.Dark), themeChoices) }
     }
 
+    @Test
+    fun `keeping the screen on while reading can be turned off`() {
+        setSettings()
+
+        composeRule
+            .onNodeWithText("Keep screen on while reading")
+            .performScrollTo()
+            .assertIsOn()
+            .performClick()
+
+        composeRule.runOnIdle { assertEquals(listOf(false), keepScreenOnChoices) }
+    }
+
+    private val keepScreenOnChoices = mutableListOf<Boolean>()
+
     private fun setSettings() {
         composeRule.setContent {
             NewsfeedTheme {
@@ -89,6 +105,8 @@ class SettingsScreenTest {
                     onSignOut = { signOuts++ },
                     onChangeServer = { serverChanges++ },
                     onOpenLicenses = { licenseOpenings++ },
+                    keepScreenOn = true,
+                    onKeepScreenOnChange = { keepScreenOnChoices += it },
                 )
             }
         }

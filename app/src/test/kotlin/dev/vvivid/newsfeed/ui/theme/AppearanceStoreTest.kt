@@ -17,7 +17,7 @@ class AppearanceStoreTest {
 
     @Test
     fun keepsTheChoiceForTheNextLaunch() {
-        val chosen = Appearance(ThemeMode.Light, useDynamicColor = true)
+        val chosen = Appearance(ThemeMode.Light, useDynamicColor = true, keepScreenOn = false)
         val store = AppearanceStore(context)
 
         store.update(chosen)

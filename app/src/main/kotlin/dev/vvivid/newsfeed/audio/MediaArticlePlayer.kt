@@ -3,6 +3,7 @@ package dev.vvivid.newsfeed.audio
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -95,15 +96,42 @@ class MediaArticlePlayer(
 
     private fun refresh() {
         val player = controller ?: return
-        val mediaId = player.currentMediaItem?.mediaId
+        val current = player.currentMediaItem
+        val index = player.currentMediaItemIndex
+        val position = player.currentPosition.coerceAtLeast(0)
+        val durations = partDurations(player)
         _state.value =
             PlayerState(
-                playlistId = mediaId?.substringBeforeLast(INDEX_SEPARATOR, missingDelimiterValue = "")?.ifEmpty { null },
+                playlistId = current?.mediaId?.substringBeforeLast(INDEX_SEPARATOR, missingDelimiterValue = "")?.ifEmpty { null },
                 isPlaying = player.isPlaying,
-                segmentIndex = player.currentMediaItemIndex,
-                positionMs = player.currentPosition.coerceAtLeast(0),
+                segmentIndex = index,
+                positionMs = position,
                 speed = player.playbackParameters.speed,
+                title = current?.mediaMetadata?.title?.toString(),
+                voiceName = current?.mediaMetadata?.artist?.toString(),
+                elapsedMs =
+                    if (durations.isEmpty()) {
+                        0
+                    } else {
+                        durations.take(index).sum() +
+                            position.coerceAtMost(durations.getOrElse(index) { 0 })
+                    },
+                totalMs = durations.sum(),
+                section = current?.mediaMetadata?.extras?.getString(EXTRA_SECTION),
             )
+    }
+
+    /** Each loaded file's length, from the parts given to [play]; empty when unknown. */
+    private fun partDurations(player: MediaController): List<Long> {
+        val durations =
+            (0 until player.mediaItemCount).map {
+                player
+                    .getMediaItemAt(it)
+                    .mediaMetadata.extras
+                    ?.getLong(EXTRA_DURATION_MS, -1)
+                    ?: -1
+            }
+        return if (durations.any { it < 0 }) emptyList() else durations
     }
 
     override fun play(
@@ -111,6 +139,7 @@ class MediaArticlePlayer(
         files: List<File>,
         title: String,
         voiceName: String,
+        parts: List<PlaylistPart>,
         segmentIndex: Int,
         positionMs: Long,
     ) {
@@ -132,6 +161,7 @@ class MediaArticlePlayer(
                             .Builder()
                             .setTitle(title)
                             .setArtist(voiceName)
+                            .setExtras(parts.getOrNull(index)?.let(::partExtras))
                             .build(),
                     ).build()
             }
@@ -157,6 +187,25 @@ class MediaArticlePlayer(
     ) = withController { it.seekTo(segmentIndex, positionMs) }
 
     override fun setSpeed(speed: Float) = withController { it.setPlaybackSpeed(speed) }
+
+    override fun skip(deltaMs: Long) =
+        withController { player ->
+            val durations = partDurations(player)
+            if (durations.isEmpty()) {
+                // Without the parts' lengths, skip within the current file.
+                player.seekTo((player.currentPosition + deltaMs).coerceAtLeast(0))
+                return@withController
+            }
+            val index = player.currentMediaItemIndex
+            var target = (durations.take(index).sum() + player.currentPosition + deltaMs).coerceIn(0, durations.sum())
+            for ((part, duration) in durations.withIndex()) {
+                if (target < duration || part == durations.lastIndex) {
+                    player.seekTo(part, target.coerceAtMost(duration))
+                    return@withController
+                }
+                target -= duration
+            }
+        }
 
     override fun stop(playlistId: String) =
         withController { player ->
@@ -188,6 +237,17 @@ class MediaArticlePlayer(
     private companion object {
         /** Media IDs are the playlist ID, this separator and the segment index. */
         const val INDEX_SEPARATOR = '#'
+
+        /** Metadata extras of each file: its length and the section it reads in. */
+        const val EXTRA_DURATION_MS = "dev.vvivid.newsfeed.duration_ms"
+        const val EXTRA_SECTION = "dev.vvivid.newsfeed.section"
+
+        fun partExtras(part: PlaylistPart): Bundle =
+            Bundle().apply {
+                putLong(EXTRA_DURATION_MS, part.durationMs)
+                part.section?.let { putString(EXTRA_SECTION, it) }
+            }
+
         const val PLAYING_REFRESH_MS = 100L
         const val PAUSED_REFRESH_MS = 500L
     }

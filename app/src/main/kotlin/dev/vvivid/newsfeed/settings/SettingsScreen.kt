@@ -67,6 +67,7 @@ data class SettingsUiState(
     val isDynamicColorAvailable: Boolean,
     val appVersion: String,
     val isChangeServerDialogOpen: Boolean = false,
+    val keepScreenOn: Boolean = true,
 )
 
 /**
@@ -87,6 +88,8 @@ fun SettingsRoute(
     onChangeServer: () -> Unit,
     onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
+    keepScreenOn: Boolean = true,
+    onKeepScreenOnChange: (Boolean) -> Unit = {},
 ) {
     var isChangeServerDialogOpen by rememberSaveable { mutableStateOf(false) }
     SettingsScreen(
@@ -99,10 +102,12 @@ fun SettingsRoute(
                 isDynamicColorAvailable = isDynamicColorAvailable,
                 appVersion = BuildConfig.VERSION_NAME,
                 isChangeServerDialogOpen = isChangeServerDialogOpen,
+                keepScreenOn = keepScreenOn,
             ),
         onBack = onBack,
         onThemeModeChange = onThemeModeChange,
         onDynamicColorChange = onDynamicColorChange,
+        onKeepScreenOnChange = onKeepScreenOnChange,
         onSignOut = onSignOut,
         onChangeServerClick = { isChangeServerDialogOpen = true },
         onChangeServerDismiss = { isChangeServerDialogOpen = false },
@@ -128,6 +133,7 @@ fun SettingsScreen(
     onChangeServerConfirm: () -> Unit,
     onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier,
+    onKeepScreenOnChange: (Boolean) -> Unit = {},
 ) {
     val serverAddress = displayServerAddress(uiState.serverOrigin)
     Scaffold(
@@ -179,8 +185,19 @@ fun SettingsScreen(
                 ) {
                     ThemeSelector(uiState.themeMode, onThemeModeChange)
                     if (uiState.isDynamicColorAvailable) {
-                        DynamicColorSwitch(uiState.useDynamicColor, onDynamicColorChange)
+                        SettingSwitch(
+                            title = R.string.settings_dynamic_color,
+                            summary = R.string.settings_dynamic_color_summary,
+                            checked = uiState.useDynamicColor,
+                            onCheckedChange = onDynamicColorChange,
+                        )
                     }
+                    SettingSwitch(
+                        title = R.string.settings_keep_screen_on,
+                        summary = R.string.settings_keep_screen_on_summary,
+                        checked = uiState.keepScreenOn,
+                        onCheckedChange = onKeepScreenOnChange,
+                    )
                 }
             }
 
@@ -357,7 +374,9 @@ private val ThemeMode.labelRes: Int
 
 /** The whole row toggles the switch, so it is one target for touch and for TalkBack. */
 @Composable
-private fun DynamicColorSwitch(
+private fun SettingSwitch(
+    @StringRes title: Int,
+    @StringRes summary: Int,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -371,9 +390,9 @@ private fun DynamicColorSwitch(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = stringResource(R.string.settings_dynamic_color), style = MaterialTheme.typography.bodyLarge)
+            Text(text = stringResource(title), style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = stringResource(R.string.settings_dynamic_color_summary),
+                text = stringResource(summary),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )

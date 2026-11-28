@@ -28,6 +28,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import dev.vvivid.newsfeed.audio.ArticlePlayer
 import dev.vvivid.newsfeed.audio.MediaArticlePlayer
 import dev.vvivid.newsfeed.audio.PreferencesAudioSettings
 import dev.vvivid.newsfeed.audio.WorkManagerAudioJobWatcher
@@ -38,6 +39,7 @@ import dev.vvivid.newsfeed.browser.openInBrowser
 import dev.vvivid.newsfeed.data.Shelf
 import dev.vvivid.newsfeed.news.NewsRoute
 import dev.vvivid.newsfeed.news.NewsViewModel
+import dev.vvivid.newsfeed.news.NowPlayingViewModel
 import dev.vvivid.newsfeed.onboarding.OnboardingRoute
 import dev.vvivid.newsfeed.onboarding.OnboardingViewModel
 import dev.vvivid.newsfeed.reader.ArticleAudioViewModel
@@ -48,6 +50,7 @@ import dev.vvivid.newsfeed.settings.SettingsRoute
 import dev.vvivid.newsfeed.ui.cover.LocalThumbnailLoader
 import dev.vvivid.newsfeed.ui.theme.Appearance
 import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.Serializable
 
 /** The app's screens, as type-safe Navigation routes. */
@@ -81,6 +84,7 @@ sealed interface Destination {
  * @param appearance the theme chosen in Settings; [onAppearanceChange] keeps a new choice.
  * @param onSignOut signs out of the current server, keeping its address for the next sign-in.
  * @param onChangeServer signs out and forgets the server.
+ * @param newAudioPlayer connects to the audio player; null for the app's background player.
  */
 @Composable
 fun NewsfeedApp(
@@ -92,6 +96,7 @@ fun NewsfeedApp(
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    newAudioPlayer: ((CoroutineScope) -> ArticlePlayer)? = null,
 ) {
     // The appearance themes every screen, so it is applied here, above the navigation graph;
     // Settings only shows and changes it.
@@ -131,6 +136,14 @@ fun NewsfeedApp(
                 CompositionLocalProvider(LocalThumbnailLoader provides session.thumbnails) {
                     NewsRoute(
                         viewModel = viewModel { NewsViewModel(session.newsRepository) },
+                        nowPlayingViewModel =
+                            viewModel {
+                                val appContext = context.applicationContext
+                                NowPlayingViewModel(newAudioPlayer ?: { scope -> MediaArticlePlayer(appContext, scope) })
+                            },
+                        onOpenPlaying = { articleId ->
+                            entry.ifResumed { navController.navigate(Destination.Article(articleId, inTrash = false)) }
+                        },
                         onOpenArticle = { article ->
                             val inTrash = article.shelf == Shelf.Trash
                             entry.ifResumed { navController.navigate(Destination.Article(article.id, inTrash)) }
@@ -154,7 +167,7 @@ fun NewsfeedApp(
                                 ArticleAudioViewModel(
                                     articleId = entry.toRoute<Destination.Article>().articleId,
                                     repository = session.audio,
-                                    newPlayer = { scope -> MediaArticlePlayer(appContext, scope) },
+                                    newPlayer = newAudioPlayer ?: { scope -> MediaArticlePlayer(appContext, scope) },
                                     watcher = WorkManagerAudioJobWatcher(appContext),
                                     settings = PreferencesAudioSettings(appContext),
                                 )
@@ -163,6 +176,7 @@ fun NewsfeedApp(
                         // Finished-reading tracking comes with the in-app browser.
                         onOpenOriginal = { url -> openPage(context, url) },
                         onOpenLink = { url -> openPage(context, url) },
+                        keepScreenOn = appearance.keepScreenOn,
                     )
                 }
             }
@@ -175,6 +189,8 @@ fun NewsfeedApp(
                     onThemeModeChange = { onAppearanceChange(appearance.copy(themeMode = it)) },
                     useDynamicColor = appearance.useDynamicColor,
                     onDynamicColorChange = { onAppearanceChange(appearance.copy(useDynamicColor = it)) },
+                    keepScreenOn = appearance.keepScreenOn,
+                    onKeepScreenOnChange = { onAppearanceChange(appearance.copy(keepScreenOn = it)) },
                     onBack = { entry.ifResumed { navController.navigateUp() } },
                     onSignOut = { entry.ifResumed(onSignOut) },
                     onChangeServer = { entry.ifResumed(onChangeServer) },

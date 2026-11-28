@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import dev.vvivid.newsfeed.audio.FakeArticlePlayer
 import dev.vvivid.newsfeed.auth.SessionEndReason
 import dev.vvivid.newsfeed.auth.SessionState
 import dev.vvivid.newsfeed.auth.SignedInSession
@@ -117,6 +118,7 @@ class NewsfeedNavigationTest {
                 onSignOut = { signOuts++ },
                 onChangeServer = { serverChanges++ },
                 navController = navController,
+                newAudioPlayer = { FakeArticlePlayer() },
             )
         }
     }

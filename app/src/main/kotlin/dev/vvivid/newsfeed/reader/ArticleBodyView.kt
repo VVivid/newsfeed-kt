@@ -1,15 +1,23 @@
 package dev.vvivid.newsfeed.reader
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,13 +27,19 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -41,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import dev.vvivid.newsfeed.R
 import dev.vvivid.newsfeed.ui.theme.ArticleBodyTextStyle
 
 /** Space between the blocks inside a quote or a list item. */
@@ -104,7 +119,7 @@ internal fun BodyBlockView(
         }
 
         is BodyBlock.CodeBlock -> {
-            CodeBlockView(block.code, blockModifier)
+            CodeBlockView(block.code, blockModifier, language = block.language)
         }
 
         is BodyBlock.Diagram -> {
@@ -203,25 +218,118 @@ private fun ListBlockView(
     }
 }
 
-/** Preformatted text keeps its lines; long ones scroll sideways instead of wrapping. */
+/**
+ * Preformatted text keeps its lines; long ones scroll sideways instead of wrapping. Code in a
+ * [language] the reader knows is colored by its syntax (see [highlightCode]); a header names the
+ * language and copies the code.
+ */
 @Composable
 internal fun CodeBlockView(
     code: String,
     modifier: Modifier = Modifier,
+    language: String? = null,
 ) {
+    val context = LocalContext.current
+    val palette = if (MaterialTheme.colorScheme.surface.luminance() < HALF_LUMINANCE) DarkCodeColors else LightCodeColors
+    val text = remember(code, language, palette) { coloredCode(code, language, palette) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Text(
-            text = code,
-            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(12.dp),
-            softWrap = false,
-            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-        )
+        Column {
+            Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = codeLanguageName(language).orEmpty(),
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                IconButton(onClick = { copyCode(context, code) }) {
+                    Icon(
+                        painterResource(R.drawable.ic_content_copy),
+                        contentDescription = stringResource(R.string.code_copy),
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = text,
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                softWrap = false,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            )
+        }
     }
 }
+
+/** Puts [code] on the clipboard. Android 13 and later confirm that themselves. */
+private fun copyCode(
+    context: Context,
+    code: String,
+) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.code_copy), code))
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(context, R.string.code_copied, Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** The colors of each kind of code token, for a light or a dark background. */
+internal class CodeColors(
+    val keyword: Color,
+    val type: Color,
+    val function: Color,
+    val text: Color,
+    val comment: Color,
+    val punctuation: Color,
+)
+
+// Each passes 4.5:1 on the reader's code background in its theme.
+private val DarkCodeColors =
+    CodeColors(
+        keyword = Color(0xFFE7B4F0),
+        type = Color(0xFF84D6C2),
+        function = Color(0xFF9EC2FF),
+        text = Color(0xFFF0C38A),
+        comment = Color(0xFF9A9DA9),
+        punctuation = Color(0xFFA3A6B2),
+    )
+
+private val LightCodeColors =
+    CodeColors(
+        keyword = Color(0xFF8B2F9E),
+        type = Color(0xFF146B5A),
+        function = Color(0xFF2457B8),
+        text = Color(0xFF8A510F),
+        comment = Color(0xFF63656F),
+        punctuation = Color(0xFF5E6070),
+    )
+
+private const val HALF_LUMINANCE = 0.5f
+
+/** [code] with each token of [language] in its color; comments are also italic. */
+internal fun coloredCode(
+    code: String,
+    language: String?,
+    colors: CodeColors,
+): AnnotatedString =
+    buildAnnotatedString {
+        append(code)
+        for (token in highlightCode(code, language)) {
+            val style =
+                when (token.kind) {
+                    CodeTokenKind.Keyword -> SpanStyle(color = colors.keyword)
+                    CodeTokenKind.Type -> SpanStyle(color = colors.type)
+                    CodeTokenKind.Function -> SpanStyle(color = colors.function)
+                    CodeTokenKind.Text, CodeTokenKind.Number -> SpanStyle(color = colors.text)
+                    CodeTokenKind.Comment -> SpanStyle(color = colors.comment, fontStyle = FontStyle.Italic)
+                    CodeTokenKind.Punctuation -> SpanStyle(color = colors.punctuation)
+                }
+            addStyle(style, token.start, token.end)
+        }
+    }
 
 /**
  * [text] with its styles applied. Its links call [onLinkClick] instead of opening anything.

@@ -18,7 +18,7 @@ class DiagramViewTest {
             listOf(
                 BodyBlock.Diagram("flowchart LR\n  A --> B"),
                 BodyBlock.Diagram("sequenceDiagram"),
-                BodyBlock.CodeBlock("val x = 1"),
+                BodyBlock.CodeBlock("val x = 1", language = "kotlin"),
             ),
             blocks,
         )

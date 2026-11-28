@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class Appearance(
     val themeMode: ThemeMode = ThemeMode.System,
     val useDynamicColor: Boolean = false,
+    /** The screen stays on while an article is open, so it doesn't dim mid-read. */
+    val keepScreenOn: Boolean = true,
 )
 
 /**
@@ -29,6 +31,7 @@ class AppearanceStore(
         preferences.edit {
             putString(KEY_THEME_MODE, appearance.themeMode.name)
             putBoolean(KEY_DYNAMIC_COLOR, appearance.useDynamicColor)
+            putBoolean(KEY_KEEP_SCREEN_ON, appearance.keepScreenOn)
         }
     }
 
@@ -37,10 +40,12 @@ class AppearanceStore(
             // An unknown name, from a later version, falls back to following the system.
             themeMode = ThemeMode.entries.firstOrNull { it.name == preferences.getString(KEY_THEME_MODE, null) } ?: ThemeMode.System,
             useDynamicColor = preferences.getBoolean(KEY_DYNAMIC_COLOR, false),
+            keepScreenOn = preferences.getBoolean(KEY_KEEP_SCREEN_ON, true),
         )
 
     private companion object {
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
     }
 }

@@ -212,6 +212,8 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_dynamic_color">Material You colors</string>
     <string name="settings_dynamic_color_summary">Use colors from your wallpaper instead of the newsprint theme</string>
+    <string name="settings_keep_screen_on">Keep screen on while reading</string>
+    <string name="settings_keep_screen_on_summary">The screen doesn\'t dim or lock while an article is open</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version</string>
     <string name="settings_licenses">Open-source licenses</string>
@@ -225,4 +227,9 @@
     <!-- %1$s is who holds the copyright, %2$s the name of the license. -->
     <string name="licenses_notice">%1$s · %2$s</string>
     <string name="licenses_loading">Loading licenses</string>
+    <string name="now_playing_open">Open the article where the voice is</string>
+    <string name="now_playing_badge">Playing</string>
+    <string name="now_paused_badge">Paused</string>
+    <string name="code_copy">Copy code</string>
+    <string name="code_copied">Code copied</string>
 </resources>

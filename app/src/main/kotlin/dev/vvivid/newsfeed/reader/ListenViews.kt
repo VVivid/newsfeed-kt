@@ -382,7 +382,7 @@ internal fun ReadyAudioCard(
 }
 
 @Composable
-private fun PlayPauseButton(
+internal fun PlayPauseButton(
     isPlaying: Boolean,
     onListen: () -> Unit,
     onPause: () -> Unit,
@@ -608,7 +608,7 @@ private fun ProgressSlider(
     }
 }
 
-private fun clock(durationMs: Long): String {
+internal fun clock(durationMs: Long): String {
     val seconds = (durationMs / 1000).coerceAtLeast(0)
     return "%d:%02d".format(seconds / 60, seconds % 60)
 }

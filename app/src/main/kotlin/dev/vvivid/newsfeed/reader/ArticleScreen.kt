@@ -52,6 +52,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
@@ -73,6 +74,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -98,6 +100,19 @@ import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
 import kotlinx.coroutines.launch
 
 /**
+ * Keeps the screen from dimming or locking while the reader is shown and [enabled] (the "Keep
+ * screen on while reading" setting); the system's timeout applies again when the reader leaves.
+ */
+@Composable
+private fun KeepScreenOnEffect(enabled: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, enabled) {
+        view.keepScreenOn = enabled
+        onDispose { view.keepScreenOn = false }
+    }
+}
+
+/**
  * The article reader. [onOpenOriginal] and [onOpenLink] receive the address to open; this screen
  * never opens one itself.
  */
@@ -109,7 +124,9 @@ fun ArticleRoute(
     onOpenOriginal: (url: String) -> Unit,
     onOpenLink: (url: String) -> Unit,
     modifier: Modifier = Modifier,
+    keepScreenOn: Boolean = false,
 ) {
+    KeepScreenOnEffect(keepScreenOn)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val audioState by audioViewModel.uiState.collectAsStateWithLifecycle()
     val listenState by audioViewModel.listenState.collectAsStateWithLifecycle()

@@ -49,7 +49,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,8 +99,11 @@ fun NewsRoute(
     onOpenArticle: (Article) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    nowPlayingViewModel: NowPlayingViewModel? = null,
+    onOpenPlaying: (articleId: String) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val nowPlaying = nowPlayingViewModel?.nowPlaying?.collectAsStateWithLifecycle()?.value
     // Articles may have moved while another screen was open, for example archived in the reader,
     // and new ones may have arrived while the app was in the background. If the view model's first
     // load is still running, refresh() does nothing.
@@ -120,12 +125,20 @@ fun NewsRoute(
         onMessageShown = viewModel::messageShown,
         onOpenSettings = onOpenSettings,
         modifier = modifier,
+        nowPlaying = nowPlaying,
+        nowPlayingActions =
+            NowPlayingActions(
+                onToggle = { nowPlayingViewModel?.toggle() },
+                onSkip = { nowPlayingViewModel?.skip(it) },
+                onOpen = onOpenPlaying,
+            ),
     )
 }
 
 /**
  * The News list: the Active, Archive and Trash shelves. Renders [uiState] and reports the user's
- * actions; [now] is the moment article ages are counted from.
+ * actions; [now] is the moment article ages are counted from. While article audio is loaded
+ * ([nowPlaying]), a player floats above the bottom of the list.
  */
 @Composable
 fun NewsScreen(
@@ -143,12 +156,15 @@ fun NewsScreen(
     onMessageShown: (NewsMessage) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    nowPlaying: NowPlaying? = null,
+    nowPlayingActions: NowPlayingActions = NowPlayingActions(),
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     MessageSnackbar(uiState.message, snackbarHostState, onUndo, onMessageShown)
     Scaffold(
         modifier = modifier,
         topBar = { NewsTopBar(onOpenSettings) },
+        bottomBar = { if (nowPlaying != null) HomePlayer(nowPlaying, nowPlayingActions) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         val layoutDirection = LocalLayoutDirection.current
@@ -186,17 +202,19 @@ fun NewsScreen(
                 }
 
                 is ShelfContent.Loaded -> {
-                    ArticleList(
-                        shelf = uiState.shelf,
-                        content = content,
-                        now = now,
-                        contentPadding = listPadding,
-                        onRefresh = onRefresh,
-                        onLoadMore = onLoadMore,
-                        onArticleClick = onArticleClick,
-                        onArchive = onArchive,
-                        onMoveToTrash = onMoveToTrash,
-                    )
+                    CompositionLocalProvider(LocalNowPlaying provides nowPlaying) {
+                        ArticleList(
+                            shelf = uiState.shelf,
+                            content = content,
+                            now = now,
+                            contentPadding = listPadding,
+                            onRefresh = onRefresh,
+                            onLoadMore = onLoadMore,
+                            onArticleClick = onArticleClick,
+                            onArchive = onArchive,
+                            onMoveToTrash = onMoveToTrash,
+                        )
+                    }
                 }
             }
         }
@@ -701,18 +719,51 @@ private fun CompactArticleCard(
     }
 }
 
-/** The article's shown tags as one line, such as "#explore"; nothing without one. */
+/** The audio loaded in the player, so its article's card can say so. */
+private val LocalNowPlaying = compositionLocalOf<NowPlaying?> { null }
+
+/**
+ * The article's shown tags as one line, such as "#explore", and "Playing" or "Paused" while its
+ * audio is loaded; nothing without either.
+ */
 @Composable
 private fun ArticleTags(article: Article) {
     val tags = article.tags.filter(SHOWN_TAGS::contains)
-    if (tags.isEmpty()) return
-    Text(
-        text = tags.joinToString(" ") { "#$it" },
-        color = MaterialTheme.colorScheme.primary,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.labelSmall,
-    )
+    val playing = LocalNowPlaying.current?.takeIf { it.articleId == article.id }
+    if (tags.isEmpty() && playing == null) return
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = tags.joinToString(" ") { "#$it" },
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelSmall,
+        )
+        if (playing != null) {
+            Row(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_waveform),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    text = stringResource(if (playing.isPlaying) R.string.now_playing_badge else R.string.now_paused_badge),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
 }
 
 /**

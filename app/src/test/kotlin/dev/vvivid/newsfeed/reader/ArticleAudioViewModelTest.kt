@@ -10,7 +10,9 @@ import dev.vvivid.newsfeed.audio.AudioStatus
 import dev.vvivid.newsfeed.audio.AudioUnavailableException
 import dev.vvivid.newsfeed.audio.AudioVoice
 import dev.vvivid.newsfeed.audio.AudioVoiceName
+import dev.vvivid.newsfeed.audio.FakeArticlePlayer
 import dev.vvivid.newsfeed.audio.PlayerState
+import dev.vvivid.newsfeed.audio.PlaylistPart
 import dev.vvivid.newsfeed.audio.SpeechSegment
 import dev.vvivid.newsfeed.audio.playlistIdOf
 import dev.vvivid.newsfeed.data.testArticle
@@ -38,7 +40,7 @@ class ArticleAudioViewModelTest {
     private val body = parseArticleBody("## Section\n\nFirst sentence. Second sentence.", "")
     private val voices = listOf(AudioVoice("talia", "Talia", "Calm"))
     private val repository = FakeAudioRepository(voices)
-    private val player = FakePlayer()
+    private val player = FakeArticlePlayer()
     private val watcher = RecordingWatcher()
 
     private fun viewModel() =
@@ -123,6 +125,11 @@ class ArticleAudioViewModelTest {
             val collector = backgroundScope.launch { viewModel.listenState.collect {} }
             viewModel.listen()
             runCurrent()
+            // The home screen's player shows progress and the section from these.
+            assertEquals(
+                listOf(PlaylistPart(1_000, null), PlaylistPart(1_000, "Section"), PlaylistPart(3_000, "Section")),
+                player.lastParts,
+            )
 
             viewModel.skip(1_500)
             assertEquals(1 to 500L, player.lastSeek)
@@ -264,60 +271,6 @@ private class FakeAudioRepository(
     override suspend fun deleteDownloads(articleId: String) {
         downloadDeletes++
     }
-}
-
-private class FakePlayer : ArticlePlayer {
-    private val _state = MutableStateFlow(PlayerState())
-    override val state: StateFlow<PlayerState> = _state
-    val stopped = mutableListOf<String>()
-    var lastSeek: Pair<Int, Long>? = null
-
-    fun move(
-        segmentIndex: Int,
-        positionMs: Long,
-    ) {
-        _state.value = _state.value.copy(segmentIndex = segmentIndex, positionMs = positionMs)
-    }
-
-    override fun play(
-        playlistId: String,
-        files: List<File>,
-        title: String,
-        voiceName: String,
-        segmentIndex: Int,
-        positionMs: Long,
-    ) {
-        _state.value = _state.value.copy(playlistId = playlistId, isPlaying = true, segmentIndex = segmentIndex, positionMs = positionMs)
-    }
-
-    override fun resume() {
-        _state.value = _state.value.copy(isPlaying = true)
-    }
-
-    override fun pause() {
-        _state.value = _state.value.copy(isPlaying = false)
-    }
-
-    override fun seekTo(
-        segmentIndex: Int,
-        positionMs: Long,
-    ) {
-        lastSeek = segmentIndex to positionMs
-        move(segmentIndex, positionMs)
-    }
-
-    override fun setSpeed(speed: Float) {
-        _state.value = _state.value.copy(speed = speed)
-    }
-
-    override fun stop(playlistId: String) {
-        stopped += playlistId
-        _state.value = PlayerState()
-    }
-
-    override fun playSample(file: File) = Unit
-
-    override fun release() = Unit
 }
 
 private class RecordingWatcher : AudioJobWatcher {
