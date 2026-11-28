@@ -7,6 +7,17 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// The commit a build comes from. Debug builds add it to their version, so Settings shows which
+// build is installed. Empty outside a Git checkout.
+val gitCommit: String =
+    providers
+        .exec {
+            commandLine("git", "rev-parse", "--short=7", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText
+        .get()
+        .trim()
+
 android {
     namespace = "dev.vvivid.newsfeed"
     // When changing these SDK levels, update the SDK packages that .github/workflows/android.yml
@@ -28,6 +39,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (gitCommit.isNotEmpty()) versionNameSuffix = "-$gitCommit"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
