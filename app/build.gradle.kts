@@ -30,8 +30,8 @@ android {
         applicationId = "dev.vvivid.newsfeed"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         // The scheme of the sign-in redirect URI (NativeClient.REDIRECT_URI in auth/NativeClient.kt).
         // AppAuth's redirect activity answers it; the identity provider must register the full URI.
