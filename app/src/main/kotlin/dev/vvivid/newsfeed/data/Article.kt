@@ -101,6 +101,19 @@ data class ArticleDetail(
      * only the summary. Untrusted: it must be rendered without raw HTML.
      */
     val contentMarkdown: String?,
+    /** The agent's script for reading the article aloud; empty for an article saved without one. */
+    val narration: List<NarrationPart> = emptyList(),
+)
+
+/**
+ * One part of an article's narration script, in reading order: what the voice says ([say]) for a
+ * passage of the article ([text]) or for the code block, diagram or table it describes
+ * ([describe]: "code", "diagram" or "table"). Exactly one of [text] and [describe] is set.
+ */
+data class NarrationPart(
+    val text: String?,
+    val describe: String?,
+    val say: String,
 )
 
 /**

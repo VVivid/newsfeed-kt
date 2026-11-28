@@ -93,7 +93,18 @@ class ServerAudioRepository(
         val body =
             ServerJson.encodeToString(
                 CreateAudioJson.serializer(),
-                CreateAudioJson(voiceId, expectedRevision, segments.map { SpeechSegmentJson(it.block, it.text) }),
+                CreateAudioJson(
+                    voiceId,
+                    expectedRevision,
+                    segments.map { segment ->
+                        SpeechSegmentJson(
+                            segment.block,
+                            segment.text,
+                            segment.spoken,
+                            segment.sync.map { listOf(it.shown, it.spoken) }.ifEmpty { null },
+                        )
+                    },
+                ),
             )
         return requestJson(Request.Builder().url(url).post(body.toRequestBody(JsonMediaType)), ArticleAudioJson.serializer()).toAudio()
     }

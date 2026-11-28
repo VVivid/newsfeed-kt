@@ -173,8 +173,22 @@ class ServerNewsRepositoryTest {
         runTest {
             server.enqueue(jsonResponse(articleJson(id = "A1")))
 
-            assertNull(repository().getArticle("A1", inTrash = false).contentMarkdown)
+            val detail = repository().getArticle("A1", inTrash = false)
+            assertNull(detail.contentMarkdown)
+            assertEquals(emptyList<NarrationPart>(), detail.narration)
             assertNull(server.nextRequest().url.queryParameter("trashed"))
+        }
+
+    @Test
+    fun `an article is read with its narration script`() =
+        runTest {
+            val narration = ""","narration":[{"text":"Title of A1","say":"Title of A one."},{"describe":"code","say":"Some code."}]"""
+            server.enqueue(jsonResponse(articleJson(id = "A1", contentMarkdown = "```go\nx\n```").dropLast(1) + narration + "}"))
+
+            assertEquals(
+                listOf(NarrationPart("Title of A1", null, "Title of A one."), NarrationPart(null, "code", "Some code.")),
+                repository().getArticle("A1", inTrash = false).narration,
+            )
         }
 
     @Test

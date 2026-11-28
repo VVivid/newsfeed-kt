@@ -116,7 +116,8 @@ class ServerAudioRepositoryTest {
         runTest {
             server.enqueue(jsonResponse(generatingJson, code = 202))
 
-            val audio = repository().create("A1", "talia", 7, listOf(SpeechSegment(-1, "Title."), SpeechSegment(0, "Body.")))
+            val narrated = SpeechSegment(1, "A $5 wire.", spoken = "A five-dollar wire.", sync = listOf(SyncPoint(5, 14)))
+            val audio = repository().create("A1", "talia", 7, listOf(SpeechSegment(-1, "Title."), SpeechSegment(0, "Body."), narrated))
 
             assertEquals(AudioStatus.Generating, audio.status)
             val request = server.nextRequest()
@@ -128,6 +129,10 @@ class ServerAudioRepositoryTest {
             val segments = body["segments"]!!.jsonArray
             assertEquals(-1, segments[0].jsonObject["block"]!!.jsonPrimitive.int)
             assertEquals("Body.", segments[1].jsonObject["text"]!!.jsonPrimitive.content)
+            // A plain part sends no script; a narrated one sends what to say and how it lines up.
+            assertEquals(setOf("block", "text"), segments[1].jsonObject.keys)
+            assertEquals("A five-dollar wire.", segments[2].jsonObject["spoken"]!!.jsonPrimitive.content)
+            assertEquals("[[5,14]]", segments[2].jsonObject["sync"].toString())
         }
 
     @Test

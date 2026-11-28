@@ -67,10 +67,23 @@ data class AudioSegment(
     val charStartsMs: List<Int>,
 )
 
-/** A part of the article to be read aloud, as the app sends it when creating audio. */
+/**
+ * A part of the article to be read aloud, as the app sends it when creating audio. [text] is what
+ * the reader shows. With the article's narration script, the voice says [spoken] instead, and
+ * [sync] ties the two together: each point pairs a code point offset in [text] with the offset in
+ * [spoken] where the same words start.
+ */
 data class SpeechSegment(
     val block: Int,
     val text: String,
+    val spoken: String? = null,
+    val sync: List<SyncPoint> = emptyList(),
+)
+
+/** Code point offsets in a segment's shown text ([shown]) and spoken text ([spoken]). */
+data class SyncPoint(
+    val shown: Int,
+    val spoken: Int,
 )
 
 /** The block index of the segment that reads the title and summary, above the body. */

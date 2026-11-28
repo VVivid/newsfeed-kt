@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.vvivid.newsfeed.data.Article
 import dev.vvivid.newsfeed.data.ArticleNotFoundException
+import dev.vvivid.newsfeed.data.NarrationPart
 import dev.vvivid.newsfeed.data.NewsRepository
 import dev.vvivid.newsfeed.data.PermissionDeniedException
 import dev.vvivid.newsfeed.data.Shelf
@@ -28,12 +29,14 @@ sealed interface ArticleUiState {
 
     /**
      * @property body the saved body, or empty when the agent saved only the summary.
+     * @property narration the agent's script for reading the article aloud, if it has one.
      * @property isUpdating a change is being written, so no other change can start.
      * @property message a snackbar message waiting to be shown.
      */
     data class Loaded(
         val article: Article,
         val body: List<BodyBlock>,
+        val narration: List<NarrationPart> = emptyList(),
         val isUpdating: Boolean = false,
         val message: ArticleMessage? = null,
     ) : ArticleUiState
@@ -136,7 +139,7 @@ class ArticleViewModel(
             detail.contentMarkdown?.let { markdown ->
                 withContext(parsingDispatcher) { parseArticleBody(markdown, detail.article.url.orEmpty()) }
             }
-        return ArticleUiState.Loaded(detail.article, body.orEmpty())
+        return ArticleUiState.Loaded(detail.article, body.orEmpty(), detail.narration)
     }
 
     /**

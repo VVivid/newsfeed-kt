@@ -16,6 +16,7 @@ import dev.vvivid.newsfeed.audio.PlayerState
 import dev.vvivid.newsfeed.audio.SpeechSegment
 import dev.vvivid.newsfeed.audio.playlistIdOf
 import dev.vvivid.newsfeed.data.Article
+import dev.vvivid.newsfeed.data.NarrationPart
 import dev.vvivid.newsfeed.data.Shelf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -196,11 +197,12 @@ class ArticleAudioViewModel(
     fun bind(
         article: Article,
         body: List<BodyBlock>,
+        narration: List<NarrationPart> = emptyList(),
     ) {
         val previous = this.article
         this.article = article
         this.body = body
-        parts = speechParts(article.title, article.summary, body)
+        parts = speechParts(article.title, article.summary, body, narration)
         if (repository == null) return
         if (article.shelf == Shelf.Trash) {
             // The server deletes audio when its article moves to Trash.
@@ -582,7 +584,7 @@ class ArticleAudioViewModel(
         val part = parts.getOrNull(index)
         val start = part?.blockTextStart
         // The server reads what the reader sent; if this copy of the body differs, only the block shows.
-        if (part == null || start == null || part.segment != segment.toSpeechSegment()) return SpokenHighlight(segment.block, null)
+        if (part == null || start == null || !part.segment.reads(segment)) return SpokenHighlight(segment.block, null)
         val codePoint = segment.charStartsMs.indexOfLast { it <= positionMs }.coerceAtLeast(0)
         val text = segment.text
         val offset = text.offsetByCodePoints(0, codePoint.coerceAtMost(text.codePointCount(0, text.length)))
@@ -605,7 +607,8 @@ class ArticleAudioViewModel(
 
 private fun List<AudioSegment>.totalDurationMs(): Long = sumOf { it.durationMs }
 
-private fun AudioSegment.toSpeechSegment() = SpeechSegment(block, text)
+/** Whether this part shows the same text, in the same block, as the server's [segment]. */
+private fun SpeechSegment.reads(segment: AudioSegment) = block == segment.block && text == segment.text
 
 private fun BodyBlock.headingText(): String? =
     (this as? BodyBlock.Heading)

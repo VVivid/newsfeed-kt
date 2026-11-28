@@ -2,6 +2,7 @@ package dev.vvivid.newsfeed.reader
 
 import dev.vvivid.newsfeed.audio.HEADER_BLOCK
 import dev.vvivid.newsfeed.audio.SpeechSegment
+import dev.vvivid.newsfeed.data.NarrationPart
 import java.text.BreakIterator
 import java.util.Locale
 import kotlin.math.ceil
@@ -24,9 +25,18 @@ data class SpeechPart(
  * [readerBody] returns it, so block indices match the reader's list). The server makes one audio
  * file per part, in this order.
  *
- * Code and diagrams cannot be read aloud, so they get a short spoken note; rules are skipped.
+ * With the agent's [narration] script, the voice says the script (see [narratedParts]). Without
+ * one, or if it doesn't line up with [body], the text is read as written: code and diagrams get a
+ * short spoken note, and rules are skipped.
  */
 fun speechParts(
+    title: String,
+    summary: String,
+    body: List<BodyBlock>,
+    narration: List<NarrationPart> = emptyList(),
+): List<SpeechPart> = narratedParts(title, body, narration) ?: plainParts(title, summary, body)
+
+private fun plainParts(
     title: String,
     summary: String,
     body: List<BodyBlock>,
@@ -38,7 +48,7 @@ fun speechParts(
     }.flatMap(::splitLongPart)
 
 /** The characters the voice service reads for [parts], which is what creating the audio costs. */
-fun speechCharacters(parts: List<SpeechPart>): Int = parts.sumOf { it.segment.text.length }
+fun speechCharacters(parts: List<SpeechPart>): Int = parts.sumOf { (it.segment.spoken ?: it.segment.text).length }
 
 /** Roughly how long [characters] take to read aloud at normal speed. */
 fun speechMinutes(characters: Int): Int = ceil(characters / CHARACTERS_PER_MINUTE).toInt().coerceAtLeast(1)
@@ -47,7 +57,7 @@ fun speechMinutes(characters: Int): Int = ceil(characters / CHARACTERS_PER_MINUT
 private const val CHARACTERS_PER_MINUTE = 900.0
 
 /** The server accepts at most 4500 bytes per part; this leaves room. */
-private const val MAX_PART_BYTES = 4000
+internal const val MAX_PART_BYTES = 4000
 
 private fun blockParts(
     index: Int,
@@ -137,7 +147,7 @@ private fun tableRowText(
     return parts.joinToString(" ").ifEmpty { null }
 }
 
-private fun spokenText(text: String): String = text.replace(Whitespace, " ").trim()
+internal fun spokenText(text: String): String = text.replace(Whitespace, " ").trim()
 
 private val Whitespace = Regex("\\s+")
 

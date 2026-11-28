@@ -118,8 +118,8 @@ fun ArticleRoute(
     val loaded = uiState as? ArticleUiState.Loaded
     if (loaded != null) {
         // The audio's parts are made from the body as the reader shows it, so their blocks match.
-        LaunchedEffect(loaded.article, loaded.body) {
-            audioViewModel.bind(loaded.article, readerBody(loaded.body, loaded.article.title))
+        LaunchedEffect(loaded.article, loaded.body, loaded.narration) {
+            audioViewModel.bind(loaded.article, readerBody(loaded.body, loaded.article.title), loaded.narration)
         }
     }
     LifecycleStartEffect(audioViewModel) {

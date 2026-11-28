@@ -122,7 +122,7 @@
     <string name="audio_voice_label">VOICE</string>
     <string name="audio_sample">Sample</string>
     <string name="audio_sample_of">Play a sample of %1$s</string>
-    <string name="audio_cost">Uses about %1$s characters of your voice credits, once</string>
+    <string name="audio_cost">Sends about %1$s characters to ElevenLabs, once</string>
     <string name="audio_lock_note">While it has audio, the article\'s text is locked. To change it later, delete the audio first.</string>
     <string name="audio_cancel">Cancel</string>
     <string name="audio_generating">Creating audio with %1$s…</string>
@@ -153,7 +153,7 @@
     <string name="audio_sleep_off">Turn off the sleep timer</string>
     <string name="audio_delete_title">Delete this audio?</string>
     <string name="audio_delete_unlocks">The article stays, and its text unlocks, so your agent can update it again.</string>
-    <string name="audio_delete_cost">Listening again means creating new audio, which uses about %1$s characters of your voice credits again.</string>
+    <string name="audio_delete_cost">Listening again means creating new audio, which sends about %1$s characters to ElevenLabs again.</string>
     <string name="audio_trash_title">Move to Trash and delete its audio?</string>
     <string name="audio_trash_deletes">This article has audio. Moving it to Trash deletes the recording.</string>
     <string name="audio_trash_restore">You can still restore the article from Trash, but the audio won\'t come back. You\'d need to create it again.</string>

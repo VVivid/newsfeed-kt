@@ -87,6 +87,9 @@ internal class CreateAudioJson(
 internal class SpeechSegmentJson(
     val block: Int,
     val text: String,
+    val spoken: String? = null,
+    /** Pairs of code point offsets, shown then spoken; left out when empty. */
+    val sync: List<List<Int>>? = null,
 )
 
 /** The server's error body. */

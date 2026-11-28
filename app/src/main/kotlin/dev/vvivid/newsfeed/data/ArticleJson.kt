@@ -25,6 +25,8 @@ internal class ArticleJson(
     @SerialName("content_markdown") val contentMarkdown: String? = null,
     /** Lowercase slugs in the server's order; left out when the article has none. */
     val tags: List<String>? = null,
+    /** The narration script; left out for an article saved without one. */
+    val narration: List<NarrationPartJson>? = null,
 ) {
     fun toArticle(): Article =
         Article(
@@ -40,7 +42,12 @@ internal class ArticleJson(
             tags = tags.orEmpty(),
         )
 
-    fun toDetail(): ArticleDetail = ArticleDetail(toArticle(), contentMarkdown?.ifEmpty { null })
+    fun toDetail(): ArticleDetail =
+        ArticleDetail(
+            toArticle(),
+            contentMarkdown?.ifEmpty { null },
+            narration.orEmpty().map { NarrationPart(it.text?.ifEmpty { null }, it.describe?.ifEmpty { null }, it.say) },
+        )
 
     /**
      * Saved thumbnails (`stored`) and older proxied ones (`legacy`) can be loaded; other statuses
@@ -85,4 +92,12 @@ internal class TagListJson(
 internal class TagCountJson(
     val tag: String,
     val count: Int,
+)
+
+/** One part of an article's narration script. */
+@Serializable
+internal class NarrationPartJson(
+    val text: String? = null,
+    val describe: String? = null,
+    val say: String,
 )
