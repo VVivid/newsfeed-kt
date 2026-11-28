@@ -14,9 +14,12 @@ class MainActivity : ComponentActivity() {
         val container = (application as NewsfeedApplication).container
         setContent {
             val sessionState by container.sessionManager.state.collectAsStateWithLifecycle()
+            val appearance by container.appearance.appearance.collectAsStateWithLifecycle()
             NewsfeedApp(
                 sessionState = sessionState,
                 signInService = container.signInService,
+                appearance = appearance,
+                onAppearanceChange = container.appearance::update,
                 onSignOut = { container.sessionManager.signOut(forgetServer = false) },
                 onChangeServer = { container.sessionManager.signOut(forgetServer = true) },
             )

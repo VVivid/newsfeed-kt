@@ -12,6 +12,8 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,12 +62,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -679,8 +685,9 @@ private fun ArticleContent(
     audioActions: AudioActions,
 ) {
     val layoutDirection = LocalLayoutDirection.current
-    val following = followSpokenBlock(listState, listenState)
-    Box(modifier = Modifier.fillMaxSize()) {
+    val spoken = remember { SpokenView() }
+    val following = followSpokenWords(listState, listenState, spoken, innerPadding)
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { spoken.screen = it }) {
         ArticleList(
             article,
             body,
@@ -692,6 +699,10 @@ private fun ArticleContent(
             listenState,
             audioActions,
             layoutDirection,
+            onSpokenPlaced = { block, placement ->
+                spoken.block = block
+                spoken.placement = placement
+            },
         )
         if (!following.value && listenState.isPlaying && listenState.highlight != null) {
             BackToVoiceChip(
@@ -706,42 +717,70 @@ private fun ArticleContent(
 }
 
 /**
- * Keeps the block the voice is reading on screen while playing. Scrolling by hand stops that, so
- * the reader can look elsewhere; the returned value turns it back on (the "Back to the voice" chip).
+ * Where the reader and the block the voice is reading are on screen, as last laid out. Plain
+ * fields, not state: following reads them when the voice moves on, and they change every frame of
+ * a scroll.
+ */
+private class SpokenView {
+    var screen: LayoutCoordinates? = null
+    var block: Int = -1
+    var placement: SpokenPlacement? = null
+
+    /** Where [highlight]'s words are, in root coordinates; null while its block is off screen. */
+    fun boundsOf(highlight: SpokenHighlight): ClosedFloatingPointRange<Float>? =
+        placement?.takeIf { block == highlight.block }?.boundsInRoot(highlight.sentence)
+}
+
+/**
+ * Keeps the words the voice is reading in view while it plays, like turning a page: once the
+ * sentence reaches the bottom of the screen, or is above the top, it scrolls up to near the top.
+ * Dragging the article stops that, so the reader can look elsewhere; the returned value turns it
+ * back on (the "Back to the voice" chip), as does pressing play.
  */
 @Composable
-private fun followSpokenBlock(
+private fun followSpokenWords(
     listState: LazyListState,
     listenState: ListenState,
+    spoken: SpokenView,
+    innerPadding: PaddingValues,
 ): MutableState<Boolean> {
     val following = remember { mutableStateOf(true) }
-    var scrollingForVoice by remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (scrolling && !scrollingForVoice) following.value = false
-        }
+        // Only the reader's own drags; scrolling for the voice is not an interaction.
+        listState.interactionSource.interactions.collect { if (it is DragInteraction.Start) following.value = false }
     }
-    val block = listenState.highlight?.block
-    LaunchedEffect(block, following.value, listenState.isPlaying) {
-        if (block == null || !following.value || !listenState.isPlaying) return@LaunchedEffect
-        val index = ITEMS_BEFORE_BODY + block
-        val layout = listState.layoutInfo
-        val item = layout.visibleItemsInfo.firstOrNull { it.index == index }
-        val comfortablyVisible =
-            item != null && item.offset >= 0 && item.offset + item.size <= layout.viewportEndOffset * FOLLOW_VISIBLE_FRACTION
-        if (comfortablyVisible) return@LaunchedEffect
-        scrollingForVoice = true
-        try {
-            listState.animateScrollToItem(index)
-        } finally {
-            scrollingForVoice = false
+    LaunchedEffect(listenState.isPlaying) {
+        if (listenState.isPlaying) following.value = true
+    }
+    val density = LocalDensity.current
+    val topPx = with(density) { innerPadding.calculateTopPadding().toPx() }
+    val bottomPx = with(density) { innerPadding.calculateBottomPadding().toPx() + FOLLOW_BOTTOM_MARGIN.toPx() }
+    val highlight = listenState.highlight
+    LaunchedEffect(highlight, following.value, listenState.isPlaying) {
+        if (highlight == null || !following.value || !listenState.isPlaying) return@LaunchedEffect
+        val screen = spoken.screen?.takeIf { it.isAttached } ?: return@LaunchedEffect
+        val visibleTop = screen.positionInRoot().y + topPx
+        val visibleBottom = screen.positionInRoot().y + screen.size.height - bottomPx
+        if (visibleBottom <= visibleTop) return@LaunchedEffect
+        var words = spoken.boundsOf(highlight)
+        if (words == null) {
+            // The block is off screen: bring it to the top, then place its sentence once laid out.
+            listState.animateScrollToItem(ITEMS_BEFORE_BODY + highlight.block)
+            withFrameNanos {}
+            words = spoken.boundsOf(highlight) ?: return@LaunchedEffect
         }
+        if (words.start >= visibleTop && words.endInclusive <= visibleBottom) return@LaunchedEffect
+        val anchor = visibleTop + (visibleBottom - visibleTop) * FOLLOW_ANCHOR_FRACTION
+        listState.animateScrollBy(words.start - anchor)
     }
     return following
 }
 
-/** The voice's block is scrolled to the top once it reaches this fraction of the screen. */
-private const val FOLLOW_VISIBLE_FRACTION = 0.8f
+/** Where a sentence that ran off the screen is brought back to: this far down the visible area. */
+private const val FOLLOW_ANCHOR_FRACTION = 0.15f
+
+/** How close to the bars at the bottom a sentence may come before the page turns. */
+private val FOLLOW_BOTTOM_MARGIN = 12.dp
 
 @Composable
 private fun ArticleList(
@@ -755,6 +794,7 @@ private fun ArticleList(
     listenState: ListenState,
     audioActions: AudioActions,
     layoutDirection: LayoutDirection,
+    onSpokenPlaced: (block: Int, SpokenPlacement) -> Unit,
 ) {
     val spokenBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = SPOKEN_BLOCK_ALPHA)
     LazyColumn(
@@ -807,7 +847,13 @@ private fun ArticleList(
                             .background(spokenBackground, RoundedCornerShape(12.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     }
-                BodyBlockView(block, onLinkClick = onOpenLink, modifier = placement, spokenSentence = spoken?.sentence)
+                BodyBlockView(
+                    block,
+                    onLinkClick = onOpenLink,
+                    modifier = placement,
+                    spokenSentence = spoken?.sentence,
+                    onSpokenPlaced = spoken?.let { { placed -> onSpokenPlaced(index, placed) } },
+                )
             }
         }
     }

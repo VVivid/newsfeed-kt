@@ -22,6 +22,7 @@ import dev.vvivid.newsfeed.auth.testServer
 import dev.vvivid.newsfeed.data.FakeNewsRepository
 import dev.vvivid.newsfeed.data.testArticle
 import dev.vvivid.newsfeed.onboarding.FakeSignInService
+import dev.vvivid.newsfeed.ui.theme.Appearance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -111,6 +112,8 @@ class NewsfeedNavigationTest {
             NewsfeedApp(
                 sessionState = sessionState,
                 signInService = FakeSignInService(),
+                appearance = Appearance(),
+                onAppearanceChange = {},
                 onSignOut = { signOuts++ },
                 onChangeServer = { serverChanges++ },
                 navController = navController,

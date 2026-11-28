@@ -23,11 +23,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -45,6 +49,8 @@ private val NestedBlockSpacing = 8.dp
 /**
  * One block of an article body. Links call [onLinkClick] with their address and open nothing by
  * themselves. [spokenSentence] marks the sentence the voice is reading in a heading or paragraph.
+ * [onSpokenPlaced], given to the block the voice is reading, hears where the block is on screen
+ * whenever it moves, so the reader can keep the voice's words in view.
  */
 @Composable
 internal fun BodyBlockView(
@@ -52,45 +58,94 @@ internal fun BodyBlockView(
     onLinkClick: (url: String) -> Unit,
     modifier: Modifier = Modifier,
     spokenSentence: IntRange? = null,
+    onSpokenPlaced: ((SpokenPlacement) -> Unit)? = null,
 ) {
+    val textLayout = remember { TextLayoutRef() }
+    val textModifier =
+        if (onSpokenPlaced == null) {
+            Modifier
+        } else {
+            // Last in the chain, so the coordinates are the text's own, inside any padding.
+            Modifier.onGloballyPositioned { onSpokenPlaced(SpokenPlacement(it, textLayout.result)) }
+        }
+    val blockModifier =
+        if (onSpokenPlaced == null) modifier else modifier.onGloballyPositioned { onSpokenPlaced(SpokenPlacement(it, null)) }
     when (block) {
         is BodyBlock.Heading -> {
             Text(
                 text = rememberBodyText(block.text, onLinkClick, spokenSentence),
                 // Extra room above a section heading sets the sections apart.
-                modifier = modifier.padding(top = if (block.level <= 2) 18.dp else 8.dp).semantics { heading() },
+                modifier =
+                    modifier
+                        .padding(top = if (block.level <= 2) 18.dp else 8.dp)
+                        .semantics { heading() }
+                        .then(textModifier),
                 color = MaterialTheme.colorScheme.tertiary,
+                onTextLayout = { textLayout.result = it },
                 style = headingStyle(block.level),
             )
         }
 
         is BodyBlock.Paragraph -> {
-            Text(text = rememberBodyText(block.text, onLinkClick, spokenSentence), modifier = modifier, style = ArticleBodyTextStyle)
+            Text(
+                text = rememberBodyText(block.text, onLinkClick, spokenSentence),
+                modifier = modifier.then(textModifier),
+                onTextLayout = { textLayout.result = it },
+                style = ArticleBodyTextStyle,
+            )
         }
 
         is BodyBlock.Quote -> {
-            QuoteView(block, onLinkClick, modifier)
+            QuoteView(block, onLinkClick, blockModifier)
         }
 
         is BodyBlock.ListBlock -> {
-            ListBlockView(block, onLinkClick, modifier)
+            ListBlockView(block, onLinkClick, blockModifier)
         }
 
         is BodyBlock.CodeBlock -> {
-            CodeBlockView(block.code, modifier)
+            CodeBlockView(block.code, blockModifier)
         }
 
         is BodyBlock.Diagram -> {
-            DiagramView(block.source, modifier)
+            DiagramView(block.source, blockModifier)
         }
 
         is BodyBlock.Table -> {
-            TableView(block, onLinkClick, modifier)
+            TableView(block, onLinkClick, blockModifier)
         }
 
         BodyBlock.Rule -> {
-            HorizontalDivider(modifier = modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(modifier = blockModifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
         }
+    }
+}
+
+/** The latest layout of a block's text, read when the block reports where it is. */
+private class TextLayoutRef {
+    var result: TextLayoutResult? = null
+}
+
+/**
+ * Where a spoken block is: its [coordinates] on screen and, for a heading or paragraph, the
+ * [text] layout that places each sentence inside them.
+ */
+internal class SpokenPlacement(
+    val coordinates: LayoutCoordinates,
+    val text: TextLayoutResult?,
+) {
+    /**
+     * The top and bottom, in root coordinates, of [sentence]'s lines; of the whole block without a
+     * sentence or text layout. Null once the block has left the screen.
+     */
+    fun boundsInRoot(sentence: IntRange?): ClosedFloatingPointRange<Float>? {
+        if (!coordinates.isAttached) return null
+        val top = coordinates.positionInRoot().y
+        val length = text?.layoutInput?.text?.length ?: 0
+        if (text == null || sentence == null || length == 0) return top..(top + coordinates.size.height)
+        val first = sentence.first.coerceIn(0, length - 1)
+        val last = sentence.last.coerceIn(first, length - 1)
+        return (top + text.getLineTop(text.getLineForOffset(first)))..(top + text.getLineBottom(text.getLineForOffset(last)))
     }
 }
 

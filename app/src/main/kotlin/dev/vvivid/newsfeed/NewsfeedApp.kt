@@ -15,11 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -50,8 +46,8 @@ import dev.vvivid.newsfeed.reader.ArticleViewModel
 import dev.vvivid.newsfeed.settings.LicensesRoute
 import dev.vvivid.newsfeed.settings.SettingsRoute
 import dev.vvivid.newsfeed.ui.cover.LocalThumbnailLoader
+import dev.vvivid.newsfeed.ui.theme.Appearance
 import dev.vvivid.newsfeed.ui.theme.NewsfeedTheme
-import dev.vvivid.newsfeed.ui.theme.ThemeMode
 import kotlinx.serialization.Serializable
 
 /** The app's screens, as type-safe Navigation routes. */
@@ -82,6 +78,7 @@ sealed interface Destination {
  * or when the session ends, the back stack is replaced, so that Back never returns to the screens
  * of a session that is gone.
  *
+ * @param appearance the theme chosen in Settings; [onAppearanceChange] keeps a new choice.
  * @param onSignOut signs out of the current server, keeping its address for the next sign-in.
  * @param onChangeServer signs out and forgets the server.
  */
@@ -89,20 +86,19 @@ sealed interface Destination {
 fun NewsfeedApp(
     sessionState: SessionState,
     signInService: SignInService,
+    appearance: Appearance,
+    onAppearanceChange: (Appearance) -> Unit,
     onSignOut: () -> Unit,
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
-    // The appearance choices live here, above the navigation graph, because they theme every
-    // screen; Settings only shows and changes them. They survive activity recreation; keeping them
-    // across app launches is not part of this version.
-    var themeMode by rememberSaveable { mutableStateOf(ThemeMode.System) }
-    var useDynamicColor by rememberSaveable { mutableStateOf(false) }
-    val darkTheme = themeMode.isDark(systemInDarkTheme = isSystemInDarkTheme())
+    // The appearance themes every screen, so it is applied here, above the navigation graph;
+    // Settings only shows and changes it.
+    val darkTheme = appearance.themeMode.isDark(systemInDarkTheme = isSystemInDarkTheme())
     SystemBarsStyleEffect(darkTheme)
 
-    NewsfeedTheme(darkTheme = darkTheme, dynamicColor = useDynamicColor) {
+    NewsfeedTheme(darkTheme = darkTheme, dynamicColor = appearance.useDynamicColor) {
         if (sessionState == SessionState.Restoring) {
             // Reading the saved session takes a moment; the window background stays until then.
             Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {}
@@ -175,10 +171,10 @@ fun NewsfeedApp(
                 SettingsRoute(
                     serverOrigin = session.server.origin,
                     signInHost = session.server.signInHost,
-                    themeMode = themeMode,
-                    onThemeModeChange = { themeMode = it },
-                    useDynamicColor = useDynamicColor,
-                    onDynamicColorChange = { useDynamicColor = it },
+                    themeMode = appearance.themeMode,
+                    onThemeModeChange = { onAppearanceChange(appearance.copy(themeMode = it)) },
+                    useDynamicColor = appearance.useDynamicColor,
+                    onDynamicColorChange = { onAppearanceChange(appearance.copy(useDynamicColor = it)) },
                     onBack = { entry.ifResumed { navController.navigateUp() } },
                     onSignOut = { entry.ifResumed(onSignOut) },
                     onChangeServer = { entry.ifResumed(onChangeServer) },

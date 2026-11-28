@@ -12,6 +12,7 @@ import dev.vvivid.newsfeed.auth.SessionStore
 import dev.vvivid.newsfeed.auth.SignInService
 import dev.vvivid.newsfeed.auth.TokenClient
 import dev.vvivid.newsfeed.net.newHttpClient
+import dev.vvivid.newsfeed.ui.theme.AppearanceStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,6 +52,8 @@ class AppContainer(
             appScope = appScope,
             audioDirs = AudioDirs(File(context.filesDir, AudioPlaybackService.AUDIO_DIR), context.cacheDir),
         )
+
+    val appearance = AppearanceStore(context)
 
     val signInService: SignInService = ServerSignIn(ServerDiscovery(httpClient), tokenClient, sessionManager, clock)
 

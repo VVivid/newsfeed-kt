@@ -644,7 +644,7 @@ private fun LeadArticleCard(
 ) {
     ArticleCard(onClick = onClick, modifier = modifier) {
         Column {
-            ArticleCover(article, modifier = Modifier.fillMaxWidth().height(176.dp))
+            ArticleCover(article, modifier = Modifier.fillMaxWidth().height(128.dp))
             Column(
                 modifier = Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -653,9 +653,17 @@ private fun LeadArticleCard(
                 Text(
                     text = article.title,
                     color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge,
                 )
-                Text(text = article.summary, style = MaterialTheme.typography.bodyMedium)
+                // A taste of the article; the reader has the rest.
+                Text(
+                    text = article.summary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 ArticleTags(article)
             }
         }
@@ -676,6 +684,8 @@ private fun CompactArticleCard(
                 Text(
                     text = article.title,
                     color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
